@@ -29,118 +29,164 @@ class _KarigarAppState extends State<KarigarApp> {
   TextEditingController substatus=TextEditingController();
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
-        scrollDirection: Axis.vertical,
-        child:Scaffold(
-          appBar: AppBar(title: Text("Service Form"),),
-          body: Column(
-            children: [
-              TextFormField(
-                controller: name,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder()
+    return Scaffold(
+      appBar: AppBar(title: Text("Service Form"),),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                TextFormField(
+                  controller: name,
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder()
+                  ),
                 ),
+                  SizedBox(
+                    height: 16,
+                  ),
+                TextFormField(
+                  controller: mobile,
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder()
+                  ),
 
-              ),
-              TextFormField(
-                controller: mobile,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder()
                 ),
+                SizedBox(
+                  height: 16,
+                ),
+                TextFormField(
+                  controller: address,
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder()
+                  ),
+                ),
+                SizedBox(
+                  height: 16,
+                ),
+                TextFormField(
+                  controller: cmpno,
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder()
+                  ),
+                ),
+                SizedBox(
+                  height: 16,
+                ),
+                TextFormField(
+                  controller: complaindate,
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder()
+                  ),
+                ),
+                SizedBox(
+                  height: 16,
+                ),
+                TextFormField(
+                  controller: product,
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder()
+                  ),
+                ),
+                SizedBox(
+                  height: 16,
+                ),
+                TextFormField(
+                  controller: category,
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder()
+                  ),
+                ),
+                SizedBox(
+                  height: 16,
+                ),
+                TextFormField(
+                  controller: brand,
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder()
+                  ),
+                ),
+                SizedBox(
+                  height: 16,
+                ),
+                TextFormField(
+                  controller: purchasedate,
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder()
+                  ),
+                ),
+                SizedBox(
+                  height: 16,
+                ),
+                TextFormField(
+                  controller:expirydate,
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder()
+                  ),
+                ),
+                SizedBox(
+                  height: 16,
+                ),
+                TextFormField(
+                  controller: complain,
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder()
+                  ),
+                ),
+                SizedBox(
+                  height: 16,
+                ),
+                TextFormField(
+                  controller:dealer ,
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder()
+                  ),
+                ),
+                SizedBox(
+                  height: 16,
+                ),
+                TextFormField(
+                  controller: village,
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder()
+                  ),
+                ),
+                SizedBox(
+                  height: 16,
+                ),
+                TextFormField(
+                  controller: warranty,
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder()
+                  ),
+                ),
+                SizedBox(
+                  height: 16,
+                ),
+                TextFormField(
+                  controller: status,
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder()
+                  ),
+                ),
+                SizedBox(
+                  height: 16,
+                ),
+                TextFormField(
+                  controller: substatus,
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder()
+                  ),
+                )
 
-              ),
-              TextFormField(
-                controller: address,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder()
-                ),
-              ),
-              TextFormField(
-                controller: cmpno,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder()
-                ),
-              ),
-              TextFormField(
-                controller: complaindate,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder()
-                ),
-              ),
-              TextFormField(
-                controller: product,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder()
-                ),
-              ),
-              TextFormField(
-                controller: category,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder()
-                ),
-              ),
-              TextFormField(
-                controller: brand,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder()
-                ),
-              ),
-              TextFormField(
-                controller: purchasedate,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder()
-                ),
-              ),
-              TextFormField(
-                controller:expirydate,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder()
-                ),
-              ),
-              TextFormField(
-                controller: complain,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder()
-                ),
-              ),
-              TextFormField(
-                controller:dealer ,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder()
-                ),
-              ),
-              TextFormField(
-                controller: village,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder()
-                ),
-              ),
-              TextFormField(
-                controller: warranty,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder()
-                ),
-              ),
-              TextFormField(
-                controller: status,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder()
-                ),
-              ),
-              TextFormField(
-                controller: substatus,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder()
-                ),
-              )
 
 
 
-
-            ],
+              ],
+            ),
           ),
-        ) ,
+        ),
       ),
     );
   }
