@@ -119,12 +119,8 @@ jobs:
       - name: Build web release
         run:
           |
-          
-          flutter build web --release --pwa-strategy=none
-      - name: Move Build Output
-        run: |
-          rm -rf web
-          mv build/web
+                    flutter build web --release --pwa-strategy=none
+
       - name: 🎯 Deploy to firebase
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
