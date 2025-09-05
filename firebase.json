@@ -1,1 +1,47 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"lmrepairserviceform","appId":"1:840981625439:android:bc2bbdcb95f23990f479ea","fileOutput":"android/app/google-services.json"}},"ios":{"default":{"projectId":"lmrepairserviceform","appId":"1:840981625439:ios:c09b04ad898c1204f479ea","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"macos":{"default":{"projectId":"lmrepairserviceform","appId":"1:840981625439:ios:c09b04ad898c1204f479ea","uploadDebugSymbols":false,"fileOutput":"macos/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"lmrepairserviceform","configurations":{"android":"1:840981625439:android:bc2bbdcb95f23990f479ea","ios":"1:840981625439:ios:c09b04ad898c1204f479ea","macos":"1:840981625439:ios:c09b04ad898c1204f479ea","web":"1:840981625439:web:5a1b90cbeb0f3fa5f479ea","windows":"1:840981625439:web:664a80d54bd31f9ff479ea"}}}}}}
+
+{
+  "hosting": {
+    "public": "build/web",
+    "headers": [
+      {
+        "source": "/*",
+        "headers": [
+          {
+            "key": "x-robots-tag",
+            "value": "noindex"
+          }
+        ]
+      },
+      {
+        "source": "/index.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        ]
+      },
+      {
+        "source": "/flutter_service_worker.js",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        ]
+      },
+      {
+        "source": "**/*.@(css|png|jpg|jpeg|gif|svg|ico)",
+        "headers": [
+          { "key": "Cache-Control", "value": "public,max-age=31536000,immutable" }
+        ]
+      }
+    ],
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
+
