@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:dropdown_search/dropdown_search.dart';
 
 class KarigarApp extends StatefulWidget {
   KarigarApp({super.key, required this.complaint,required this.title, required this.token});
@@ -33,6 +34,8 @@ class _KarigarAppState extends State<KarigarApp> {
   //late TextEditingController warranty;
   // late TextEditingController status;
    late TextEditingController substatus;
+  late TextEditingController _villageSearchController;
+
 
   late TextEditingController visitDate;
   late TextEditingController visitTime;
@@ -111,7 +114,9 @@ class _KarigarAppState extends State<KarigarApp> {
     if (response.statusCode == 200) {
       final List<dynamic> villageList = json.decode(response.body);
       setState(() {
-        villages = villageList.map((village) => village.toString()).toList();
+        villages = villageList.map((village) => village.toString().toUpperCase()).toList();
+        villages.sort((a, b) => a.compareTo(b)); // Sort villages alphabetically
+
       });
     } else {
       throw Exception('Failed to load villages');
@@ -136,6 +141,10 @@ required String Name,
     required String Warranty,
     required String Status,
     required String Substatus,
+    required String? visitDate,
+    required String? visitTime,
+     String? solveDate,
+    String? tat,
   }) async {
     final url = Uri.parse('https://limsonvercelapi2.vercel.app/api/fsupdaterecord');
 
@@ -158,8 +167,8 @@ required String Name,
           'Product name': Product,
           'Category': Category,
           'Brand': Brand,
-          'Visit date': visitDate.text,
-          'Solve date': solveDate.text,
+          'Visit date': visitDate,
+          'Solve date': solveDate,
           'TAT': tat,
           'Purchase date': PurchaseDate,
           'warranty expiry date': ExpiryDate,
@@ -269,6 +278,7 @@ required String Name,
     //warranty = TextEditingController();
     dealerName = widget.complaint['Dealer name'];
     villageName = widget.complaint['Village'];
+    _villageSearchController = TextEditingController(text: villageName);
     visitDate = TextEditingController(text: widget.complaint['Visit date']);
     visitTime = TextEditingController(text: widget.complaint['Visit time']);
     solveDate = TextEditingController(text: widget.complaint['Solve date']);
@@ -495,31 +505,95 @@ required String Name,
                 SizedBox(
                   height: 16,
                 ),
-
-                DropdownButtonFormField<String>(
-                  value: villageName,
-                  hint: Text("Select Village"),
-                  decoration: InputDecoration(
-                    labelText: "Village",
-                    border: OutlineInputBorder(),
-                  ),
-                  items: villages.map((String village) {
-                    return DropdownMenuItem<String>(
-                      value: village,
-                      child: Text(village),
+                // DropdownSearch<String>(
+                //
+                //   popupProps: PopupProps.menu(
+                //     showSearchBox: true,
+                //     searchFieldProps: TextFieldProps(
+                //       decoration: InputDecoration(
+                //         labelText: "Search Village",
+                //         border: OutlineInputBorder(),
+                //       ),
+                //     ),
+                //   ),
+                //   selectedItem: villageName,
+                //   items: villages,
+                //   // asyncItems: (String filter) async {
+                //   //   return villages.where((village) =>
+                //   //       village.toLowerCase().contains(filter.toLowerCase())
+                //   //   ).toList();
+                //   // },
+                //
+                //   //items: villages,
+                //  // listViewProps:ListViewProps(),
+                //   // SuggestedItemProps:SuggestedItemProps()
+                //   decoratorProps: DropDownDecoratorProps(
+                //     decoration: InputDecoration(
+                //       labelText: "Village",
+                //       border: OutlineInputBorder(),
+                //     ),
+                //   ),
+                //   onChanged: (String? newVillage) {
+                //     setState(() {
+                //       villageName = newVillage;
+                //       dealerName = null;
+                //       dealers.clear();
+                //     });
+                //     if (newVillage != null) {
+                //       fetchDealers(newVillage);
+                //     }
+                //   },
+                // ),
+                DropdownMenu<String>(
+                  controller:  _villageSearchController,
+                  initialSelection: villageName, // Set the initial selected value
+                  label: const Text('Village'), // Label for the text field
+                  hintText: 'Select or search village',
+                  enableFilter: true, // This enables the search/filter functionality
+                  // Use `dropdownMenuEntries` to provide the list of items
+                  dropdownMenuEntries: villages.map<DropdownMenuEntry<String>>((String v) {
+                    return DropdownMenuEntry<String>(
+                      value: v,
+                      label: v,
                     );
                   }).toList(),
-                  onChanged: (String? newVillage) {
+                  onSelected: (String? newVillage) {
                     setState(() {
                       villageName = newVillage;
-                      dealerName = null; // Reset dealer selection
-                      dealers.clear();
+                      dealerName = null; // Reset dealer selection when village changes
+                      dealers.clear(); // Clear existing dealers
                     });
                     if (newVillage != null) {
-                      fetchDealers(newVillage);
+                      fetchDealers(newVillage); // Fetch dealers for the new village
                     }
                   },
+                  width: MediaQuery.of(context).size.width - 32, // Adjust width to fit padding
                 ),
+
+                // DropdownButtonFormField<String>(
+                //   value: villageName,
+                //   hint: Text("Select Village"),
+                //   decoration: InputDecoration(
+                //     labelText: "Village",
+                //     border: OutlineInputBorder(),
+                //   ),
+                //   items: villages.map((String village) {
+                //     return DropdownMenuItem<String>(
+                //       value: village,
+                //       child: Text(village),
+                //     );
+                //   }).toList(),
+                //   onChanged: (String? newVillage) {
+                //     setState(() {
+                //       villageName = newVillage;
+                //       dealerName = null; // Reset dealer selection
+                //       dealers.clear();
+                //     });
+                //     if (newVillage != null) {
+                //       fetchDealers(newVillage);
+                //     }
+                //   },
+                // ),
                 SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   isExpanded: true,
@@ -544,9 +618,34 @@ required String Name,
 
                 // After the visit date field
                 TextFormField(
+
                   controller: visitTime,
                   decoration: InputDecoration(
                     labelText: "Visit Time",
+                    border: OutlineInputBorder(),
+                  ),
+                  readOnly: true,
+                ),
+                SizedBox(
+                  height: 16,
+                ),
+                TextFormField(
+                  controller: visitDate,
+                  decoration: InputDecoration(
+                    labelText: "Visit Date",
+                    border: OutlineInputBorder(),
+                  ),
+                  readOnly: true,
+
+                ),
+                SizedBox(
+                  height: 16,
+                ),
+                TextFormField(
+
+                  controller: solveDate,
+                  decoration: InputDecoration(
+                    labelText: "Solve Date",
                     border: OutlineInputBorder(),
                   ),
                   readOnly: true,
@@ -700,6 +799,19 @@ required String Name,
                   onChanged: (String? newValue) {
                     setState(() {
                       status= newValue ?? '';
+
+                      // Auto-set visit date and time when status changes to "In Progress"
+                      if (newValue == 'In Progress' && visitDate.text.isEmpty) {
+                        final now = DateTime.now();
+                        visitDate.text = now.toIso8601String().split('T')[0];
+                        visitTime.text= TimeOfDay.now().toString();
+                        visitTime.text = selectedVisitTime!.format(context);
+                      }
+                      else if( newValue == 'Resolved' && solveDate.text.isEmpty) {
+                        final now = DateTime.now();
+                        solveDate.text = now.toIso8601String().split('T')[0];
+                        tat = DateTime.now().difference(DateTime.parse(complaindate.text)).inDays.toString();
+                      }
                     });
                   },
                 ),
@@ -729,7 +841,7 @@ required String Name,
                   onPressed: () {
                     // Handle form submission
                     // You can send the data to your backend or perform any action you need
-                    updateRecord(Name:name.text,Phone:mobile.text,Address:address.text,City: city.text,Pincode: pincode.text,ComplainDate: complaindate.text,Product:_selectedValue!,Category: selectedCategory!,Brand: selectedBrand!,PurchaseDate:purchasedate.text,ExpiryDate: expirydate.text,Complain: complain.text,DealerName: dealerName,VillageName: villageName,Warranty: selectedWarranty!,Status: status,Substatus: substatus.text).then((_) {
+                    updateRecord(Name:name.text,Phone:mobile.text,Address:address.text,City: city.text,Pincode: pincode.text,ComplainDate: complaindate.text,Product:_selectedValue!,Category: selectedCategory!,Brand: selectedBrand!,visitDate: visitDate.text,solveDate:solveDate.text,visitTime: visitTime.text,tat: tat,PurchaseDate:purchasedate.text,ExpiryDate: expirydate.text,Complain: complain.text,DealerName: dealerName,VillageName: villageName,Warranty: selectedWarranty!,Status: status,Substatus: substatus.text).then((_) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Complaint updated successfully')),
                       );
