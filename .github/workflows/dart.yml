@@ -3,7 +3,7 @@ name: Deploy to Firebase on Commit
 on:
   push:
     branches:
-      - main  # Change to your production branch (e.g., master, production)
+      - master  # Change to your production branch (e.g., master, production)
     paths:
       - '**'  # Watch all files
 
