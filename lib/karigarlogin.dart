@@ -67,9 +67,7 @@ String? role;
                     border: OutlineInputBorder()),
                 controller: phoneController,
                 keyboardType: TextInputType.phone,
-                onChanged: (phone){
-                  phoneController.text=phone;
-                },
+
               ),
             ),
             Padding(
