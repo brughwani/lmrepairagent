@@ -1,9 +1,4 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:lmrepaireagent/KarigarHome.dart';
-import 'package:lmrepaireagent/Karigarform.dart';
-import 'package:http/http.dart' as http;
 import 'package:lmrepaireagent/authservice.dart';
 
 class LoginForm extends StatefulWidget {
@@ -14,86 +9,130 @@ class LoginForm extends StatefulWidget {
 }
 
 class _LoginFormState extends State<LoginForm> {
-  TextEditingController phoneController = TextEditingController();
-
-  TextEditingController passwordController = TextEditingController();
-
-String? role;
+  final TextEditingController phoneController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+  String? role;
+  bool isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    role="Karigar";
+    role = "Karigar";
   }
 
-  // Future<void> LoginUser(String phoneNumber, String password) async {
-  //   // Call your Node.js backend for registration
-  //   final response = await http.post(
-  //     Uri.parse('https://limsonvercelapi2.vercel.app/api/fsauth'),
-  //     headers: <String, String>{
-  //       'Content-Type': 'application/json; charset=UTF-8',
-  //     },
-  //     body: jsonEncode(<String, String>{
-  //       'phoneNumber': phoneNumber,
-  //       'password': password,
-  //       'app': role!,
-  //     }),
-  //   );
-  //
-  //   if (response.statusCode == 200) {
-  //     // User registered successfully
-  //     print('User logged in successfully!');
-  //     Navigator.of(context).push(MaterialPageRoute(builder: (context)=>KarigarHome(token: token, name: name)));
-  //   } else {
-  //     // Handle error
-  //     print('Error: ${response.body}');
-  //   }
-  // }
+  @override
+  void dispose() {
+    phoneController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    final phone = phoneController.text.trim();
+    final password = passwordController.text;
+
+    if (phone.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please enter both Login ID and Password"),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      await AuthService(baseUrl: 'https://limsonvercelapi2.vercel.app')
+          .authenticate(phone, password, role ?? "Karigar", context);
+    } catch (e) {
+      if (mounted) {
+        String errorMsg = e.toString();
+        if (errorMsg.startsWith('Exception: ')) {
+          errorMsg = errorMsg.replaceFirst('Exception: ', '');
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMsg),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Login"),),
-      body:Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: TextFormField(
-                decoration: InputDecoration(
-                    label: Text("Login id"),
-                    border: OutlineInputBorder()),
-                controller: phoneController,
-                keyboardType: TextInputType.phone,
-
+      appBar: AppBar(
+        title: const Text("Login"),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: "Login ID / Phone",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                  controller: phoneController,
+                  keyboardType: TextInputType.phone,
+                  enabled: !isLoading,
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: TextFormField(
-                decoration: InputDecoration(
-                    label: Text("password"),
-                    border: OutlineInputBorder()),
-                controller: passwordController,
-                obscureText: true,
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: "Password",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock),
+                  ),
+                  controller: passwordController,
+                  obscureText: true,
+                  enabled: !isLoading,
+                  onFieldSubmitted: (_) => _handleLogin(),
+                ),
               ),
-            ),
-            ElevatedButton(onPressed:(){
-
-        //    var url=Uri.parse('https://limsonvercelapi2.vercel.app/api/fsauth');
-//LoginUser(phoneController.text, passwordController.text);
-            AuthService(baseUrl: 'https://limsonvercelapi2.vercel.app').authenticate(phoneController.text, passwordController.text, role!, context);
-
-
-              //Navigator.of(context).push(MaterialPageRoute(builder: (context)=>KarigarApp()));
-
-            } , child:Text("Login") )
-          ],
-
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: isLoading ? null : _handleLogin,
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text("Login", style: TextStyle(fontSize: 16)),
+                ),
+              ),
+            ],
+          ),
         ),
-      )
+      ),
     );
   }
 }
