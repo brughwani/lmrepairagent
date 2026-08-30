@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "840981625439",
+    "project_id": "lmrepairserviceform",
+    "storage_bucket": "lmrepairserviceform.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:840981625439:android:bc2bbdcb95f23990f479ea",
+        "android_client_info": {
+          "package_name": "com.lmsupport.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCy-HaeIOYsTfTn6vmmfSjv6H18DUKozaA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
