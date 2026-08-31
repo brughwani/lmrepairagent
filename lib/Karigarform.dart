@@ -260,57 +260,68 @@ required String Name,
   @override
   void initState() {
     super.initState();
-    name = TextEditingController(text: widget.complaint['Customer name']);
-    mobile = TextEditingController(text: widget.complaint['Phone']);
-    address = TextEditingController(text: widget.complaint['address']);
-    city = TextEditingController(text: widget.complaint['City']);
-    pincode = TextEditingController();
-    cmpno = TextEditingController();
-    complaindate = TextEditingController(text: widget.complaint['date of complain']);
-    product = TextEditingController(text: widget.complaint['Product name']);
-    category = TextEditingController(text: widget.complaint['Category']);
-    brand = TextEditingController(text: widget.complaint['Brand']);
-    purchasedate = TextEditingController(text: widget.complaint['Purchase date']);
-    expirydate = TextEditingController(text: widget.complaint['warranty expiry date']);
-    complain = TextEditingController(text:widget.complaint['Problem']);
-    // dealer = TextEditingController();
-    // village = TextEditingController();
-    //warranty = TextEditingController();
-    dealerName = widget.complaint['Dealer name'];
-    villageName = widget.complaint['Village'];
-    _villageSearchController = TextEditingController(text: villageName);
-    visitDate = TextEditingController(text: widget.complaint['Visit date']);
-    visitTime = TextEditingController(text: widget.complaint['Visit time']);
-    solveDate = TextEditingController(text: widget.complaint['Solve date']);
+    name = TextEditingController(text: (widget.complaint['Customer name'] ?? widget.complaint['Customer Name'] ?? widget.complaint['customerName'] ?? '').toString());
+    mobile = TextEditingController(text: (widget.complaint['Phone'] ?? widget.complaint['phone'] ?? '').toString());
+    address = TextEditingController(text: (widget.complaint['address'] ?? widget.complaint['Address'] ?? '').toString());
+    city = TextEditingController(text: (widget.complaint['City'] ?? widget.complaint['city'] ?? '').toString());
+    pincode = TextEditingController(text: (widget.complaint['Pincode'] ?? widget.complaint['pincode'] ?? '').toString());
+    cmpno = TextEditingController(text: (widget.complaint['Complaint no.'] ?? widget.complaint['cmpno'] ?? '').toString());
+    complaindate = TextEditingController(text: (widget.complaint['date of complain'] ?? widget.complaint['Date of complain'] ?? '').toString());
+    product = TextEditingController(text: (widget.complaint['Product name'] ?? widget.complaint['Product Name'] ?? widget.complaint['product'] ?? '').toString());
+    category = TextEditingController(text: (widget.complaint['Category'] ?? widget.complaint['category'] ?? '').toString());
+    brand = TextEditingController(text: (widget.complaint['Brand'] ?? widget.complaint['brand'] ?? '').toString());
+    purchasedate = TextEditingController(text: (widget.complaint['Purchase date'] ?? widget.complaint['Purchase Date'] ?? '').toString());
+    expirydate = TextEditingController(text: (widget.complaint['warranty expiry date'] ?? widget.complaint['Warranty expiry date'] ?? '').toString());
+    complain = TextEditingController(text: (widget.complaint['Problem'] ?? widget.complaint['problem'] ?? '').toString());
 
+    dealerName = (widget.complaint['Dealer name'] ?? widget.complaint['Dealer Name'] ?? widget.complaint['dealer'] ?? '')?.toString();
+    if (dealerName != null && dealerName!.isEmpty) dealerName = null;
 
-    status = widget.complaint['Status'];
-    substatus = TextEditingController();
+    villageName = (widget.complaint['Village'] ?? widget.complaint['village'] ?? widget.complaint['Location'] ?? '')?.toString();
+    if (villageName != null && villageName!.isEmpty) villageName = null;
 
-    selectedBrand = widget.complaint['Brand'];
-    selectedCategory = widget.complaint['Category'];
-    _selectedValue = widget.complaint['Product name'];
+    _villageSearchController = TextEditingController(text: villageName ?? '');
+    visitDate = TextEditingController(text: (widget.complaint['Visit date'] ?? widget.complaint['Visit Date'] ?? '').toString());
+    visitTime = TextEditingController(text: (widget.complaint['Visit time'] ?? widget.complaint['Visit Time'] ?? '').toString());
+    solveDate = TextEditingController(text: (widget.complaint['Solve date'] ?? widget.complaint['Solve Date'] ?? '').toString());
+
+    final rawStatus = (widget.complaint['Status'] ?? widget.complaint['status'] ?? 'Open').toString().trim();
+    if (rawStatus.toLowerCase() == 'open' || rawStatus.toLowerCase() == 'pending' || rawStatus.toLowerCase() == 'assigned' || rawStatus.toLowerCase() == 'allotted' || rawStatus.isEmpty) {
+      status = 'Open';
+    } else if (rawStatus.toLowerCase() == 'in progress' || rawStatus.toLowerCase() == 'inprogress' || rawStatus.toLowerCase() == 'in-progress') {
+      status = 'In Progress';
+    } else if (rawStatus.toLowerCase() == 'resolved' || rawStatus.toLowerCase() == 'solved' || rawStatus.toLowerCase() == 'closed') {
+      status = 'Resolved';
+    } else {
+      status = 'Open';
+    }
+
+    substatus = TextEditingController(text: (widget.complaint['Substatus'] ?? widget.complaint['substatus'] ?? '').toString());
+
+    final rawBrand = (widget.complaint['Brand'] ?? widget.complaint['brand'] ?? '')?.toString();
+    selectedBrand = (rawBrand != null && rawBrand.isNotEmpty) ? rawBrand : null;
+
+    final rawCategory = (widget.complaint['Category'] ?? widget.complaint['category'] ?? '')?.toString();
+    selectedCategory = (rawCategory != null && rawCategory.isNotEmpty) ? rawCategory : null;
+
+    final rawProduct = (widget.complaint['Product name'] ?? widget.complaint['Product Name'] ?? widget.complaint['product'] ?? '')?.toString();
+    _selectedValue = (rawProduct != null && rawProduct.isNotEmpty) ? rawProduct : null;
+
+    final rawWarranty = (widget.complaint['Warranty status'] ?? widget.complaint['warranty'] ?? 'In Warranty').toString();
+    selectedWarranty = (rawWarranty.toLowerCase().contains('out')) ? 'Out of Warranty' : 'In Warranty';
 
     fetchbrands(widget.token);
 
-
-    //fetchVillages();
-    // if (selectedBrand != null) {
-    //
-    //   fetchCategories(selectedBrand!);
-    //   fetchProductsForCategory(selectedBrand!, selectedCategory!);
-    // }
     fetchVillages().then((_) {
-      // If we have a village, fetch its dealers
-      if (villageName != null) {
+      if (villageName != null && villageName!.isNotEmpty) {
         fetchDealers(villageName!);
       }
     });
+
     if (selectedBrand != null && selectedBrand!.isNotEmpty) {
       fetchCategories(selectedBrand!).then((_) {
         if (selectedCategory != null && selectedCategory!.isNotEmpty) {
-          // Delay the product fetch to ensure categories are loaded first
-          Future.delayed(Duration(milliseconds: 100), () {
+          Future.delayed(const Duration(milliseconds: 100), () {
             fetchProductsForCategory(selectedBrand!, selectedCategory!);
           });
         }
@@ -319,92 +330,92 @@ required String Name,
 
     if (widget.complaint['Visit time'] != null) {
       try {
-        final timeStr = widget.complaint['Visit time'];
+        final timeStr = widget.complaint['Visit time'].toString();
         final parts = timeStr.split(':');
-        selectedVisitTime = TimeOfDay(
+        if (parts.length >= 2) {
+          selectedVisitTime = TimeOfDay(
             hour: int.parse(parts[0]),
-            minute: int.parse(parts[1])
-        );
-        visitTime.text = selectedVisitTime!.format(context);
+            minute: int.parse(parts[1].split(' ')[0]),
+          );
+        }
       } catch (e) {
         selectedVisitTime = null;
       }
     }
-
   }
 
   @override
   Widget build(BuildContext context) {
-    print(widget.complaint);
+    // Ensure dropdown options contain pre-selected values so Flutter never crashes
+    if (selectedBrand != null && selectedBrand!.isNotEmpty && !brands.contains(selectedBrand)) {
+      brands.insert(0, selectedBrand!);
+    }
+    if (selectedCategory != null && selectedCategory!.isNotEmpty && !categories.contains(selectedCategory)) {
+      categories.insert(0, selectedCategory!);
+    }
+    if (_selectedValue != null && _selectedValue!.isNotEmpty && !products.contains(_selectedValue)) {
+      products.insert(0, _selectedValue!);
+    }
+    if (dealerName != null && dealerName!.isNotEmpty && !dealers.contains(dealerName)) {
+      dealers.insert(0, dealerName!);
+    }
+    if (villageName != null && villageName!.isNotEmpty && !villages.contains(villageName!.toUpperCase())) {
+      villages.insert(0, villageName!.toUpperCase());
+    }
+
     return Scaffold(
-      appBar: AppBar(title: Text("Service Form"),),
+      appBar: AppBar(title: const Text("Service Form")),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: SingleChildScrollView(
             child: Column(
               children: [
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 TextFormField(
-                //  initialValue: widget.complaint['Customer Name'],
                   controller: name,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     label: Text("Customer Name"),
-                      border: OutlineInputBorder()
+                    border: OutlineInputBorder(),
                   ),
                 ),
-                  SizedBox(
-                    height: 16,
-                  ),
+                const SizedBox(height: 16),
                 TextFormField(
-
-              //    initialValue: widget.complaint['Phone'],
                   controller: mobile,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     label: Text("Phone"),
-                      border: OutlineInputBorder()
+                    border: OutlineInputBorder(),
                   ),
-
                 ),
-                SizedBox(
-                  height: 16,
-                ),
+                const SizedBox(height: 16),
                 TextFormField(
-            //      initialValue: widget.complaint['address'],
                   controller: address,
-                  decoration: InputDecoration(
-                      label: Text("address"),
-                      border: OutlineInputBorder()
+                  decoration: const InputDecoration(
+                    label: Text("address"),
+                    border: OutlineInputBorder(),
                   ),
                 ),
-                SizedBox(
-                  height: 16,
-                ),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: city,
-                  decoration: InputDecoration(
-                      //label: Text("Phone"),
-                      border: OutlineInputBorder()
+                  decoration: const InputDecoration(
+                    label: Text("City"),
+                    border: OutlineInputBorder(),
                   ),
                 ),
-                SizedBox(
-                  height: 16,
-                ),
+                const SizedBox(height: 16),
                 TextFormField(
-             //     initialValue: widget.complaint['date of complain'],
                   controller: complaindate,
-                  decoration: InputDecoration(
-                      label: Text("Date of Complain"),
-                      border: OutlineInputBorder()
+                  decoration: const InputDecoration(
+                    label: Text("Date of Complain"),
+                    border: OutlineInputBorder(),
                   ),
                 ),
-                SizedBox(
-                  height: 16,
-                ),
+                const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: selectedBrand,
-                  hint: Text("Select Brand"),
-                  decoration: InputDecoration(
+                  value: (selectedBrand != null && brands.contains(selectedBrand)) ? selectedBrand : null,
+                  hint: const Text("Select Brand"),
+                  decoration: const InputDecoration(
                     labelText: "Brand",
                     border: OutlineInputBorder(),
                   ),
@@ -412,37 +423,33 @@ required String Name,
                   items: brands.map<DropdownMenuItem<String>>((String brnd) {
                     return DropdownMenuItem<String>(
                       value: brnd,
-                      child: Container(
-                        width: double.infinity,
-                        child: Text(
-                          brnd,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
+                      child: Text(
+                        brnd,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     );
                   }).toList(),
                   onChanged: (String? newbrnd) {
                     setState(() {
                       selectedBrand = newbrnd;
-                      selectedCategory = null; // Reset category
-                      _selectedValue = null; // Reset product
+                      selectedCategory = null;
+                      _selectedValue = null;
                       categories.clear();
                       products.clear();
                       if (newbrnd != null) {
-                        print(123);
                         fetchCategories(newbrnd);
                       }
                     });
                   },
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
 
                 // Category Dropdown
                 DropdownButtonFormField<String>(
-                  value: selectedCategory,
-                  hint: Text("Select Category"),
-                  decoration: InputDecoration(
+                  value: (selectedCategory != null && categories.contains(selectedCategory)) ? selectedCategory : null,
+                  hint: const Text("Select Category"),
+                  decoration: const InputDecoration(
                     labelText: "Category",
                     border: OutlineInputBorder(),
                   ),
@@ -450,7 +457,7 @@ required String Name,
                   onChanged: (newValue) {
                     setState(() {
                       selectedCategory = newValue;
-                      _selectedValue = null; // Reset product selection only when user manually changes category
+                      _selectedValue = null;
                       products.clear();
                     });
                     if (newValue != null && selectedBrand != null) {
@@ -460,39 +467,31 @@ required String Name,
                   items: categories.map<DropdownMenuItem<String>>((String category) {
                     return DropdownMenuItem<String>(
                       value: category,
-                      child: Container(
-                        width: double.infinity,
-                        child: Text(
-                          category,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
+                      child: Text(
+                        category,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     );
                   }).toList(),
                 ),
-                SizedBox(
-                  height: 16,
-                ),
+                const SizedBox(height: 16),
 
                 DropdownButtonFormField<String>(
-                  value: _selectedValue,
-                  hint: Text("Select Product"),
-                  decoration: InputDecoration(
+                  value: (_selectedValue != null && products.contains(_selectedValue)) ? _selectedValue : null,
+                  hint: const Text("Select Product"),
+                  decoration: const InputDecoration(
                     labelText: "Product",
                     border: OutlineInputBorder(),
                   ),
                   isExpanded: true,
-                  items: products.map<DropdownMenuItem<String>>((String product) {
+                  items: products.map<DropdownMenuItem<String>>((String prod) {
                     return DropdownMenuItem<String>(
-                      value: product,
-                      child: Container(
-                        width: double.infinity,
-                        child: Text(
-                          product,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
+                      value: prod,
+                      child: Text(
+                        prod,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     );
                   }).toList(),
@@ -502,55 +501,14 @@ required String Name,
                     });
                   },
                 ),
-                SizedBox(
-                  height: 16,
-                ),
-                // DropdownSearch<String>(
-                //
-                //   popupProps: PopupProps.menu(
-                //     showSearchBox: true,
-                //     searchFieldProps: TextFieldProps(
-                //       decoration: InputDecoration(
-                //         labelText: "Search Village",
-                //         border: OutlineInputBorder(),
-                //       ),
-                //     ),
-                //   ),
-                //   selectedItem: villageName,
-                //   items: villages,
-                //   // asyncItems: (String filter) async {
-                //   //   return villages.where((village) =>
-                //   //       village.toLowerCase().contains(filter.toLowerCase())
-                //   //   ).toList();
-                //   // },
-                //
-                //   //items: villages,
-                //  // listViewProps:ListViewProps(),
-                //   // SuggestedItemProps:SuggestedItemProps()
-                //   decoratorProps: DropDownDecoratorProps(
-                //     decoration: InputDecoration(
-                //       labelText: "Village",
-                //       border: OutlineInputBorder(),
-                //     ),
-                //   ),
-                //   onChanged: (String? newVillage) {
-                //     setState(() {
-                //       villageName = newVillage;
-                //       dealerName = null;
-                //       dealers.clear();
-                //     });
-                //     if (newVillage != null) {
-                //       fetchDealers(newVillage);
-                //     }
-                //   },
-                // ),
+                const SizedBox(height: 16),
+
                 DropdownMenu<String>(
-                  controller:  _villageSearchController,
-                  initialSelection: villageName, // Set the initial selected value
-                  label: const Text('Village'), // Label for the text field
+                  controller: _villageSearchController,
+                  initialSelection: villageName,
+                  label: const Text('Village'),
                   hintText: 'Select or search village',
-                  enableFilter: true, // This enables the search/filter functionality
-                  // Use `dropdownMenuEntries` to provide the list of items
+                  enableFilter: true,
                   dropdownMenuEntries: villages.map<DropdownMenuEntry<String>>((String v) {
                     return DropdownMenuEntry<String>(
                       value: v,
@@ -560,46 +518,22 @@ required String Name,
                   onSelected: (String? newVillage) {
                     setState(() {
                       villageName = newVillage;
-                      dealerName = null; // Reset dealer selection when village changes
-                      dealers.clear(); // Clear existing dealers
+                      dealerName = null;
+                      dealers.clear();
                     });
                     if (newVillage != null) {
-                      fetchDealers(newVillage); // Fetch dealers for the new village
+                      fetchDealers(newVillage);
                     }
                   },
-                  width: MediaQuery.of(context).size.width - 32, // Adjust width to fit padding
+                  width: MediaQuery.of(context).size.width - 32,
                 ),
+                const SizedBox(height: 16),
 
-                // DropdownButtonFormField<String>(
-                //   value: villageName,
-                //   hint: Text("Select Village"),
-                //   decoration: InputDecoration(
-                //     labelText: "Village",
-                //     border: OutlineInputBorder(),
-                //   ),
-                //   items: villages.map((String village) {
-                //     return DropdownMenuItem<String>(
-                //       value: village,
-                //       child: Text(village),
-                //     );
-                //   }).toList(),
-                //   onChanged: (String? newVillage) {
-                //     setState(() {
-                //       villageName = newVillage;
-                //       dealerName = null; // Reset dealer selection
-                //       dealers.clear();
-                //     });
-                //     if (newVillage != null) {
-                //       fetchDealers(newVillage);
-                //     }
-                //   },
-                // ),
-                SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   isExpanded: true,
-                  value: dealerName,
-                  hint: Text("Select Dealer"),
-                  decoration: InputDecoration(
+                  value: (dealerName != null && dealers.contains(dealerName)) ? dealerName : null,
+                  hint: const Text("Select Dealer"),
+                  decoration: const InputDecoration(
                     labelText: "Dealer",
                     border: OutlineInputBorder(),
                   ),
@@ -615,156 +549,75 @@ required String Name,
                     });
                   },
                 ),
+                const SizedBox(height: 16),
 
-                // After the visit date field
                 TextFormField(
-
                   controller: visitTime,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: "Visit Time",
                     border: OutlineInputBorder(),
                   ),
                   readOnly: true,
                 ),
-                SizedBox(
-                  height: 16,
-                ),
+                const SizedBox(height: 16),
+
                 TextFormField(
                   controller: visitDate,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: "Visit Date",
                     border: OutlineInputBorder(),
                   ),
                   readOnly: true,
+                ),
+                const SizedBox(height: 16),
 
-                ),
-                SizedBox(
-                  height: 16,
-                ),
                 TextFormField(
-
                   controller: solveDate,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: "Solve Date",
                     border: OutlineInputBorder(),
                   ),
                   readOnly: true,
                 ),
+                const SizedBox(height: 16),
 
-                // DropdownButton(
-                //   value: selectedCategory,
-                //   onChanged: (newValue) {
-                //
-                //     setState(() {
-                //       selectedCategory = newValue as String?;
-                //     });
-                //     if (newValue != null) {
-                //       fetchProductsForCategory(selectedBrand!,newValue); // Fetch products for the selected category
-                //     }
-                //   },
-                //   items: categories.map<DropdownMenuItem<String>>((String category) {
-                //     return DropdownMenuItem<String>(
-                //       value: category,
-                //       child: Text(category),
-                //     );
-                //   }).toList(),
-                //
-                // ),
-             //    TextFormField(
-             // //     initialValue: widget.complaint['Product name'],
-             //      controller: product,
-             //      decoration: InputDecoration(
-             //          label: Text("Product Name"),
-             //          border: OutlineInputBorder()
-             //      ),
-             //    ),
-                SizedBox(
-
-                  height: 16,
-                ),
-          //       TextFormField(
-          // //        initialValue: widget.complaint['Category'],
-          //         controller: category,
-          //         decoration: InputDecoration(
-          //             label: Text("Category"),
-          //             border: OutlineInputBorder()
-          //         ),
-          //       ),
-                SizedBox(
-                  height: 16,
-                ),
-            //     TextFormField(
-            // //      initialValue: widget.complaint['Brand'],
-            //       controller: brand,
-            //       decoration: InputDecoration(
-            //           label: Text("Brand"),
-            //           border: OutlineInputBorder()
-            //       ),
-            //     ),
-                SizedBox(
-                  height: 16,
-                ),
                 TextFormField(
-         //         initialValue: widget.complaint['Purchase date'],
                   controller: purchasedate,
-                  decoration: InputDecoration(
-                      label: Text("Purchase Date"),
-                      border: OutlineInputBorder()
+                  decoration: const InputDecoration(
+                    label: Text("Purchase Date"),
+                    border: OutlineInputBorder(),
                   ),
                 ),
-                SizedBox(
-                  height: 16,
-                ),
+                const SizedBox(height: 16),
+
                 TextFormField(
-          //        initialValue: widget.complaint['warranty expiry date'],
-                  controller:expirydate,
-                  decoration: InputDecoration(
-                      label: Text("Warranty Expiry Date"),
-                      border: OutlineInputBorder()
+                  controller: expirydate,
+                  decoration: const InputDecoration(
+                    label: Text("Warranty Expiry Date"),
+                    border: OutlineInputBorder(),
                   ),
                 ),
-                SizedBox(
-                  height: 16,
-                ),
+                const SizedBox(height: 16),
+
                 TextFormField(
                   controller: complain,
-                  decoration: InputDecoration(
-                      label: Text("Complain"),
-                      border: OutlineInputBorder()
+                  decoration: const InputDecoration(
+                    label: Text("Complain"),
+                    border: OutlineInputBorder(),
                   ),
                 ),
-                SizedBox(
-                  height: 16,
-                ),
-                // TextFormField(
-                //   controller:dealer ,
-                //   decoration: InputDecoration(
-                //       label: Text("Dealer"),
-                //       border: OutlineInputBorder()
-                //   ),
-                // ),
-                // SizedBox(
-                //   height: 16,
-                // ),
-                // TextFormField(
-                //   controller: village,
-                //   decoration: InputDecoration(
-                //       label: Text("Village"),
-                //       border: OutlineInputBorder()
-                //   ),
-                // ),
+                const SizedBox(height: 16),
 
-                SizedBox(
-                  height: 16,
-                ),
                 DropdownButtonFormField<String>(
-                  value: selectedWarranty,
-                  hint: Text("Select Warranty Status"),
-                  decoration: InputDecoration(
+                  value: (selectedWarranty == 'In Warranty' || selectedWarranty == 'Out of Warranty')
+                      ? selectedWarranty
+                      : 'In Warranty',
+                  hint: const Text("Select Warranty Status"),
+                  decoration: const InputDecoration(
                     labelText: "Warranty Status",
                     border: OutlineInputBorder(),
                   ),
-                  items: [
+                  items: const [
                     DropdownMenuItem(
                       value: "In Warranty",
                       child: Text("In Warranty"),
@@ -780,13 +633,12 @@ required String Name,
                     });
                   },
                 ),
-                SizedBox(
-                  height: 16,
-                ),
+                const SizedBox(height: 16),
+
                 DropdownButtonFormField<String>(
-                  value: status.isNotEmpty ? status : null,
-                  hint: Text("Select Status"),
-                  decoration: InputDecoration(
+                  value: statuses.contains(status) ? status : 'Open',
+                  hint: const Text("Select Status"),
+                  decoration: const InputDecoration(
                     labelText: "Status",
                     border: OutlineInputBorder(),
                   ),
@@ -798,64 +650,84 @@ required String Name,
                   }).toList(),
                   onChanged: (String? newValue) {
                     setState(() {
-                      status= newValue ?? '';
+                      status = newValue ?? 'Open';
 
-                      // Auto-set visit date and time when status changes to "In Progress"
                       if (newValue == 'In Progress' && visitDate.text.isEmpty) {
                         final now = DateTime.now();
                         visitDate.text = now.toIso8601String().split('T')[0];
-                        visitTime.text= TimeOfDay.now().toString();
-                        visitTime.text = selectedVisitTime!.format(context);
-                      }
-                      else if( newValue == 'Resolved' && solveDate.text.isEmpty) {
+                        final tod = TimeOfDay.now();
+                        final hour = tod.hour.toString().padLeft(2, '0');
+                        final minute = tod.minute.toString().padLeft(2, '0');
+                        visitTime.text = '$hour:$minute';
+                      } else if (newValue == 'Resolved' && solveDate.text.isEmpty) {
                         final now = DateTime.now();
                         solveDate.text = now.toIso8601String().split('T')[0];
-                        tat = DateTime.now().difference(DateTime.parse(complaindate.text)).inDays.toString();
+                        if (complaindate.text.isNotEmpty) {
+                          try {
+                            tat = DateTime.now().difference(DateTime.parse(complaindate.text)).inDays.toString();
+                          } catch (_) {
+                            tat = '0';
+                          }
+                        }
                       }
                     });
                   },
                 ),
-                // DropdownButtonFormField(value:status.text,items:statuses.map((s)=>DropdownMenuItem(value:s,child:Text(s)))) , onChanged:(){}),
-           //      TextFormField(
-           // //       initialValue: widget.complaint['Status'],
-           //        controller: status,
-           //        decoration: InputDecoration(
-           //            label: Text("Status"),
-           //            border: OutlineInputBorder()
-           //        ),
-           //      ),
-                SizedBox(
-                  height: 16,
-                ),
+                const SizedBox(height: 16),
+
                 TextFormField(
                   controller: substatus,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     label: Text("Substatus"),
-                      border: OutlineInputBorder()
+                    border: OutlineInputBorder(),
                   ),
                 ),
-                SizedBox(
-                  height: 16,
-                ),
+                const SizedBox(height: 16),
+
                 ElevatedButton(
                   onPressed: () {
-                    // Handle form submission
-                    // You can send the data to your backend or perform any action you need
-                    updateRecord(Name:name.text,Phone:mobile.text,Address:address.text,City: city.text,Pincode: pincode.text,ComplainDate: complaindate.text,Product:_selectedValue!,Category: selectedCategory!,Brand: selectedBrand!,visitDate: visitDate.text,solveDate:solveDate.text,visitTime: visitTime.text,tat: tat,PurchaseDate:purchasedate.text,ExpiryDate: expirydate.text,Complain: complain.text,DealerName: dealerName,VillageName: villageName,Warranty: selectedWarranty!,Status: status,Substatus: substatus.text).then((_) {
+                    final complaintId = widget.complaint['id'] ?? widget.complaint['_id'];
+                    if (complaintId == null) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Complaint updated successfully')),
+                        const SnackBar(content: Text('Cannot update: complaint ID missing')),
                       );
-                      Navigator.pop(context,true);
+                      return;
+                    }
+                    updateRecord(
+                      Name: name.text,
+                      Phone: mobile.text,
+                      Address: address.text,
+                      City: city.text,
+                      Pincode: pincode.text,
+                      ComplainDate: complaindate.text,
+                      Product: _selectedValue ?? product.text,
+                      Category: selectedCategory ?? category.text,
+                      Brand: selectedBrand ?? brand.text,
+                      visitDate: visitDate.text,
+                      solveDate: solveDate.text,
+                      visitTime: visitTime.text,
+                      tat: tat,
+                      PurchaseDate: purchasedate.text,
+                      ExpiryDate: expirydate.text,
+                      Complain: complain.text,
+                      DealerName: dealerName,
+                      VillageName: villageName,
+                      Warranty: selectedWarranty ?? 'In Warranty',
+                      Status: status,
+                      Substatus: substatus.text,
+                    ).then((_) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Complaint updated successfully')),
+                      );
+                      Navigator.pop(context, true);
                     }).catchError((error) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Failed to update complaint: $error')),
                       );
-
                     });
                   },
-                  child: Text("Submit"),
+                  child: const Text("Submit"),
                 )
-
               ],
             ),
           ),
