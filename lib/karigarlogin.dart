@@ -1,9 +1,4 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:lmrepaireagent/KarigarHome.dart';
-import 'package:lmrepaireagent/Karigarform.dart';
-import 'package:http/http.dart' as http;
 import 'package:lmrepaireagent/authservice.dart';
 
 class LoginForm extends StatefulWidget {
@@ -18,37 +13,44 @@ class _LoginFormState extends State<LoginForm> {
 
   TextEditingController passwordController = TextEditingController();
 
-String? role;
+  String? role;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    role="Karigar";
+    role = "Karigar";
   }
 
-  // Future<void> LoginUser(String phoneNumber, String password) async {
-  //   // Call your Node.js backend for registration
-  //   final response = await http.post(
-  //     Uri.parse('https://limsonvercelapi2.vercel.app/api/fsauth'),
-  //     headers: <String, String>{
-  //       'Content-Type': 'application/json; charset=UTF-8',
-  //     },
-  //     body: jsonEncode(<String, String>{
-  //       'phoneNumber': phoneNumber,
-  //       'password': password,
-  //       'app': role!,
-  //     }),
-  //   );
-  //
-  //   if (response.statusCode == 200) {
-  //     // User registered successfully
-  //     print('User logged in successfully!');
-  //     Navigator.of(context).push(MaterialPageRoute(builder: (context)=>KarigarHome(token: token, name: name)));
-  //   } else {
-  //     // Handle error
-  //     print('Error: ${response.body}');
-  //   }
-  // }
+  Future<void> _handleLogin() async {
+    if (phoneController.text.isEmpty || passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter both login ID and password')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await AuthService(baseUrl: 'https://limsonvercelapi2.vercel.app')
+          .authenticate(phoneController.text, passwordController.text, role!, context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Login failed: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,16 +82,12 @@ String? role;
                 obscureText: true,
               ),
             ),
-            ElevatedButton(onPressed:(){
-
-        //    var url=Uri.parse('https://limsonvercelapi2.vercel.app/api/fsauth');
-//LoginUser(phoneController.text, passwordController.text);
-            AuthService(baseUrl: 'https://limsonvercelapi2.vercel.app').authenticate(phoneController.text, passwordController.text, role!, context);
-
-
-              //Navigator.of(context).push(MaterialPageRoute(builder: (context)=>KarigarApp()));
-
-            } , child:Text("Login") )
+            _isLoading
+                ? const CircularProgressIndicator()
+                : ElevatedButton(
+                    onPressed: _handleLogin,
+                    child: Text("Login"),
+                  ),
           ],
 
         ),
