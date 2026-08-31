@@ -1,21 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:dropdown_search/dropdown_search.dart';
+
+String _parseDate(dynamic date) {
+  if (date == null) return '';
+  if (date is DateTime) {
+    return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+  }
+  if (date is Map) {
+    final seconds = date['_seconds'] ?? date['seconds'] ?? date['_seconds_'];
+    if (seconds != null && seconds is num) {
+      final dt = DateTime.fromMillisecondsSinceEpoch(seconds.toInt() * 1000);
+      return "${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}";
+    }
+  }
+  final str = date.toString().trim();
+  if (str.isEmpty) return '';
+
+  final secMatch = RegExp(r'_?seconds:?\s*(\d+)').firstMatch(str);
+  if (secMatch != null) {
+    final sec = int.tryParse(secMatch.group(1)!);
+    if (sec != null) {
+      final dt = DateTime.fromMillisecondsSinceEpoch(sec * 1000);
+      return "${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}";
+    }
+  }
+
+  if (str.contains('T')) {
+    return str.split('T')[0];
+  }
+  return str;
+}
 
 class KarigarApp extends StatefulWidget {
-  KarigarApp({super.key, required this.complaint,required this.title, required this.token});
-  String title;
-  String token;
-  final Map<String,dynamic> complaint;
+  final String title;
+  final String token;
+  final Map<String, dynamic> complaint;
+
+  const KarigarApp({
+    super.key,
+    required this.complaint,
+    required this.title,
+    required this.token,
+  });
 
   @override
   State<KarigarApp> createState() => _KarigarAppState();
 }
 
-
 class _KarigarAppState extends State<KarigarApp> {
-
   late TextEditingController name;
   late TextEditingController mobile;
   late TextEditingController address;
@@ -29,285 +62,369 @@ class _KarigarAppState extends State<KarigarApp> {
   late TextEditingController purchasedate;
   late TextEditingController expirydate;
   late TextEditingController complain;
-  late TextEditingController dealer;
-  late TextEditingController village;
-  //late TextEditingController warranty;
-  // late TextEditingController status;
-   late TextEditingController substatus;
+  late TextEditingController substatus;
   late TextEditingController _villageSearchController;
-
 
   late TextEditingController visitDate;
   late TextEditingController visitTime;
   late TextEditingController solveDate;
   late String tat = "";
   TimeOfDay? selectedVisitTime;
-  List<String> products=[];
+
+  List<String> products = [];
   List<String> categories = [];
-  List<String> brands=[];
-  List<String> dealers=[];
-  List<String> villages=[];
-  List<String> statuses=['Open', 'In Progress', 'Resolved'];
+  List<String> brands = [];
+  List<String> dealers = [];
+  List<String> villages = [];
+  final List<String> statuses = ['Open', 'In Progress', 'Resolved'];
 
   String? dealerName;
   String? villageName;
-  String status = ""; // Default value for status
-
+  String status = "Open";
   String? selectedCategory;
   String? selectedBrand;
-  String? selectedWarranty = "In Warranty"; // Default value for warranty status
-//  String? request;
+  String? selectedWarranty = "In Warranty";
   String? _selectedValue;
-  //TextEditingController name=TextEditingController();
-  // TextEditingController mobile=TextEditingController();
-  // TextEditingController address=TextEditingController();
-  // TextEditingController city=TextEditingController();
-  // TextEditingController pincode=TextEditingController();
-  // TextEditingController cmpno=TextEditingController();
-  // TextEditingController complaindate=TextEditingController();
-  // TextEditingController product=TextEditingController();
-  // TextEditingController category=TextEditingController();
-  // TextEditingController brand=TextEditingController();
-  // TextEditingController purchasedate=TextEditingController();
-  // TextEditingController expirydate=TextEditingController();
-  // TextEditingController complain=TextEditingController();
-  // TextEditingController dealer=TextEditingController();
-  // TextEditingController village=TextEditingController();
-  // TextEditingController warranty=TextEditingController();
-  // TextEditingController status=TextEditingController();
-  // TextEditingController substatus=TextEditingController();
+  String allottedTo = "";
+  String requestType = "";
 
-  Future<void> fetchbrands(String token) async
-  {
-    final response= await http.get(
-      Uri.parse('https://limsonvercelapi2.vercel.app/api/fsproductservice?level=brands'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization':'Bearer ${widget.token}',
-      },
-    );
-    if(response.statusCode==200)
-    {
-      final List<dynamic> brandlist=jsonDecode(response.body);
-      setState(() {
-        brands=brandlist.map((b)=>b.toString()).toList();
-      });
+  bool isSubmitting = false;
 
-//print(response.body);
-    }
-    else
-    {
-      throw Exception('Failed to load brands');
-      // print(response.statusCode);
+  Future<void> fetchbrands(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://limsonvercelapi2.vercel.app/api/fsproductservice?level=brands'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${widget.token}',
+        },
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> brandlist = jsonDecode(response.body);
+        setState(() {
+          brands = brandlist.map((b) => b.toString()).toList();
+        });
+      }
+    } catch (e) {
+      print('Failed to load brands: $e');
     }
   }
 
   Future<void> fetchVillages() async {
-    final response = await http.get(
-      Uri.parse('https://limsonvercelapi2.vercel.app/api/fsdealerservice?getLocations=true'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ${widget.token}',
-      },
-    );
+    try {
+      final response = await http.get(
+        Uri.parse('https://limsonvercelapi2.vercel.app/api/fsdealerservice?getLocations=true'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${widget.token}',
+        },
+      );
 
-    if (response.statusCode == 200) {
-      final List<dynamic> villageList = json.decode(response.body);
-      setState(() {
-        villages = villageList.map((village) => village.toString().toUpperCase()).toList();
-        villages.sort((a, b) => a.compareTo(b)); // Sort villages alphabetically
-
-      });
-    } else {
-      throw Exception('Failed to load villages');
+      if (response.statusCode == 200) {
+        final List<dynamic> villageList = json.decode(response.body);
+        setState(() {
+          villages = villageList.map((village) => village.toString().toUpperCase()).toList();
+          villages.sort((a, b) => a.compareTo(b));
+        });
+      }
+    } catch (e) {
+      print('Failed to load villages: $e');
     }
   }
+
+  Future<void> fetchDealers(String village) async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://limsonvercelapi2.vercel.app/api/fsdealerservice?locality=$village'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${widget.token}',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> dealerList = json.decode(response.body);
+        setState(() {
+          dealers = dealerList.map((dealer) => dealer['Dealer name'].toString()).toList();
+        });
+      }
+    } catch (e) {
+      print('Failed to load dealers: $e');
+    }
+  }
+
+  Future<void> fetchCategories(String brandName) async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://limsonvercelapi2.vercel.app/api/fsproductservice?level=categories&brand=$brandName'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${widget.token}',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> categoryList = json.decode(response.body);
+        setState(() {
+          categories = categoryList.map((c) => c.toString()).toList();
+        });
+      }
+    } catch (e) {
+      print('Failed to load categories: $e');
+    }
+  }
+
+  Future<void> fetchProductsForCategory(String brandName, String categoryId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://limsonvercelapi2.vercel.app/api/fsproductservice?level=products&brand=$brandName&category=$categoryId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${widget.token}',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> productList = json.decode(response.body);
+        setState(() {
+          products = productList.map((e) => e['name'].toString()).toList();
+          final rawProd = (widget.complaint['Product name'] ??
+                  widget.complaint['Product Name'] ??
+                  widget.complaint['product'] ??
+                  '')
+              .toString()
+              .trim();
+          if (products.contains(rawProd)) {
+            _selectedValue = rawProd;
+          }
+        });
+      }
+    } catch (e) {
+      print('Failed to load products: $e');
+    }
+  }
+
   Future<void> updateRecord({
-required String Name,
-    required  String Phone,
+    required String Name,
+    required String Phone,
     required String Address,
     required String City,
-    required  String Pincode,
-    String? Cmpno,
-    required  String ComplainDate,
+    required String Pincode,
+    required String Cmpno,
+    required String ComplainDate,
     required String Product,
     required String Category,
     required String Brand,
     required String PurchaseDate,
     required String ExpiryDate,
     required String Complain,
-    required  String? DealerName,
+    required String? DealerName,
     required String? VillageName,
     required String Warranty,
     required String Status,
     required String Substatus,
     required String? visitDate,
     required String? visitTime,
-     String? solveDate,
+    String? solveDate,
     String? tat,
   }) async {
+    final complaintId = widget.complaint['id'] ?? widget.complaint['_id'];
+    if (complaintId == null) {
+      throw Exception('Complaint ID is missing');
+    }
+
     final url = Uri.parse('https://limsonvercelapi2.vercel.app/api/fsupdaterecord');
 
     final response = await http.patch(
       url,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ${widget.token}', // If your API uses auth middleware
+        'Authorization': 'Bearer ${widget.token}',
       },
       body: jsonEncode({
-        'id': widget.complaint['id'],
+        'id': complaintId,
         'fields': {
-          'Customer name':Name,
+          'Customer name': Name,
           'Phone': Phone,
           'address': Address,
           'City': City,
+          'city': City,
           'Pincode': Pincode,
-          // 'Complaint no.': cmpno.text,
+          'pincode': Pincode,
+          'Complaint no.': Cmpno,
+          'Complain number': Cmpno,
           'date of complain': ComplainDate,
           'Product name': Product,
           'Category': Category,
           'Brand': Brand,
-          'Visit date': visitDate,
-          'Solve date': solveDate,
-          'TAT': tat,
+          'Visit date': visitDate ?? '',
+          'Visit time': visitTime ?? '',
+          'Solve date': solveDate ?? '',
+          'TAT': tat ?? '',
           'Purchase date': PurchaseDate,
           'warranty expiry date': ExpiryDate,
           'Problem': Complain,
-          'Dealer name': DealerName ?? '', // Add null check
+          'Complain/Remark': Complain,
+          'Dealer name': DealerName ?? '',
           'Village': VillageName ?? '',
           'Warranty status': Warranty,
-          // 'Warranty status': warranty.text, // Assuming you have a warranty field
           'Status': Status,
           'Substatus': Substatus,
         },
       }),
     );
 
-    if (response.statusCode == 200) {
-      print('Update successful: ${response.body}');
-    } else {
-      print('Update failed: ${response.statusCode} ${response.body}');
-    }
-  }
-  Future<void> fetchDealers(String village) async {
-    final response = await http.get(
-      Uri.parse('https://limsonvercelapi2.vercel.app/api/fsdealerservice?locality=$village'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ${widget.token}',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final List<dynamic> dealerList = json.decode(response.body);
-      print(dealerList);
-      setState(() {
-        dealers = dealerList.map((dealer) => dealer['Dealer name'].toString()).toList();
-      });
-    } else {
-      throw Exception('Failed to load dealers');
+    if (response.statusCode != 200) {
+      throw Exception('API error (${response.statusCode}): ${response.body}');
     }
   }
 
-  Future<void> fetchCategories(String Brand) async {
-    final response = await http.get(
-      Uri.parse('https://limsonvercelapi2.vercel.app/api/fsproductservice?level=categories&brand=$Brand'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization':'Bearer ${widget.token}',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      print(response.body);
-      final List<dynamic> categoryList = json.decode(response.body);
-      setState(() {
-        categories = categoryList.map((category) => category.toString()).toList();
-
-      });
-      // print(categories);
-    } else {
-      throw Exception('Failed to load categories');
-    }
-  }
-
-  Future<void> fetchProductsForCategory(String Brand,String categoryId) async {
-    final response = await http.get(
-      Uri.parse('https://limsonvercelapi2.vercel.app/api/fsproductservice?level=products&brand=$Brand&category=$categoryId'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization':'Bearer ${widget.token}',
-      },
-    );
-
-    print(response.body);
-
-    if (response.statusCode == 200) {
-      final List<dynamic> productList = json.decode(response.body);
-      setState(() {
-        products = productList.map((e) => e['name'].toString()).toList();
-        if (products.contains(widget.complaint['Product name'])) {
-          _selectedValue = widget.complaint['Product name'];
-        } else {
-          _selectedValue = null;
-        }
-        // _selectedValue = null; // Reset product selection when category changes
-      });
-    } else {
-      throw Exception('Failed to load products');
-    }
-  }
   @override
   void initState() {
     super.initState();
-    name = TextEditingController(text: (widget.complaint['Customer name'] ?? widget.complaint['Customer Name'] ?? widget.complaint['customerName'] ?? '').toString());
-    mobile = TextEditingController(text: (widget.complaint['Phone'] ?? widget.complaint['phone'] ?? '').toString());
-    address = TextEditingController(text: (widget.complaint['address'] ?? widget.complaint['Address'] ?? '').toString());
-    city = TextEditingController(text: (widget.complaint['City'] ?? widget.complaint['city'] ?? '').toString());
-    pincode = TextEditingController(text: (widget.complaint['Pincode'] ?? widget.complaint['pincode'] ?? '').toString());
-    cmpno = TextEditingController(text: (widget.complaint['Complaint no.'] ?? widget.complaint['cmpno'] ?? '').toString());
-    complaindate = TextEditingController(text: (widget.complaint['date of complain'] ?? widget.complaint['Date of complain'] ?? '').toString());
-    product = TextEditingController(text: (widget.complaint['Product name'] ?? widget.complaint['Product Name'] ?? widget.complaint['product'] ?? '').toString());
-    category = TextEditingController(text: (widget.complaint['Category'] ?? widget.complaint['category'] ?? '').toString());
-    brand = TextEditingController(text: (widget.complaint['Brand'] ?? widget.complaint['brand'] ?? '').toString());
-    purchasedate = TextEditingController(text: (widget.complaint['Purchase date'] ?? widget.complaint['Purchase Date'] ?? '').toString());
-    expirydate = TextEditingController(text: (widget.complaint['warranty expiry date'] ?? widget.complaint['Warranty expiry date'] ?? '').toString());
-    complain = TextEditingController(text: (widget.complaint['Problem'] ?? widget.complaint['problem'] ?? '').toString());
 
-    dealerName = (widget.complaint['Dealer name'] ?? widget.complaint['Dealer Name'] ?? widget.complaint['dealer'] ?? '')?.toString();
+    final c = widget.complaint;
+
+    // Complaint Number
+    cmpno = TextEditingController(
+      text: (c['Complain number'] ??
+              c['Complaint no.'] ??
+              c['cmpno'] ??
+              c['complainNumber'] ??
+              '')
+          .toString()
+          .trim(),
+    );
+
+    // Customer Name
+    name = TextEditingController(
+      text: (c['Customer name'] ??
+              c['Customer Name'] ??
+              c['customerName'] ??
+              c['name'] ??
+              '')
+          .toString()
+          .trim(),
+    );
+
+    // Phone
+    mobile = TextEditingController(
+      text: (c['Phone'] ?? c['phone'] ?? c['Mobile'] ?? c['mobile'] ?? '')
+          .toString()
+          .trim(),
+    );
+
+    // Address
+    address = TextEditingController(
+      text: (c['address'] ?? c['Address'] ?? '').toString().trim(),
+    );
+
+    // City
+    city = TextEditingController(
+      text: (c['city'] ?? c['City'] ?? '').toString().trim(),
+    );
+
+    // Pincode
+    pincode = TextEditingController(
+      text: (c['pincode'] ?? c['Pincode'] ?? '').toString().trim(),
+    );
+
+    // Complaint Date
+    complaindate = TextEditingController(
+      text: _parseDate(c['date of complain'] ?? c['Date of complain'] ?? c['complainDate']),
+    );
+
+    // Product, Category, Brand
+    product = TextEditingController(
+      text: (c['Product name'] ?? c['Product Name'] ?? c['product'] ?? '')
+          .toString()
+          .trim(),
+    );
+    category = TextEditingController(
+      text: (c['Category'] ?? c['category'] ?? '').toString().trim(),
+    );
+    brand = TextEditingController(
+      text: (c['Brand'] ?? c['brand'] ?? '').toString().trim(),
+    );
+
+    // Purchase Date & Expiry Date
+    purchasedate = TextEditingController(
+      text: _parseDate(c['Purchase date'] ?? c['Purchase Date'] ?? c['purchaseDate']),
+    );
+    expirydate = TextEditingController(
+      text: _parseDate(c['warranty expiry date'] ?? c['Warranty expiry date'] ?? c['warrantyExpiryDate']),
+    );
+
+    // Problem / Complain / Remark
+    complain = TextEditingController(
+      text: (c['Complain/Remark'] ??
+              c['Problem'] ??
+              c['problem'] ??
+              c['complain'] ??
+              c['remark'] ??
+              '')
+          .toString()
+          .trim(),
+    );
+
+    // Request metadata
+    allottedTo = (c['allotted to'] ?? c['allottedTo'] ?? c['technician'] ?? '').toString().trim();
+    requestType = (c['Request Type'] ?? c['requestType'] ?? 'Complain').toString().trim();
+
+    // Dealer & Village
+    dealerName = (c['Dealer name'] ?? c['Dealer Name'] ?? c['dealer'])?.toString().trim();
     if (dealerName != null && dealerName!.isEmpty) dealerName = null;
 
-    villageName = (widget.complaint['Village'] ?? widget.complaint['village'] ?? widget.complaint['Location'] ?? '')?.toString();
+    villageName = (c['Village'] ?? c['village'] ?? c['Location'])?.toString().trim();
     if (villageName != null && villageName!.isEmpty) villageName = null;
 
     _villageSearchController = TextEditingController(text: villageName ?? '');
-    visitDate = TextEditingController(text: (widget.complaint['Visit date'] ?? widget.complaint['Visit Date'] ?? '').toString());
-    visitTime = TextEditingController(text: (widget.complaint['Visit time'] ?? widget.complaint['Visit Time'] ?? '').toString());
-    solveDate = TextEditingController(text: (widget.complaint['Solve date'] ?? widget.complaint['Solve Date'] ?? '').toString());
 
-    final rawStatus = (widget.complaint['Status'] ?? widget.complaint['status'] ?? 'Open').toString().trim();
-    if (rawStatus.toLowerCase() == 'open' || rawStatus.toLowerCase() == 'pending' || rawStatus.toLowerCase() == 'assigned' || rawStatus.toLowerCase() == 'allotted' || rawStatus.isEmpty) {
+    // Visit and Solve Dates
+    visitDate = TextEditingController(
+      text: _parseDate(c['Visit date'] ?? c['Visit Date']),
+    );
+    visitTime = TextEditingController(
+      text: (c['Visit time'] ?? c['Visit Time'] ?? '').toString().trim(),
+    );
+    solveDate = TextEditingController(
+      text: _parseDate(c['Solve date'] ?? c['Solve Date']),
+    );
+
+    // Status
+    final rawStatus = (c['Status'] ?? c['status'] ?? 'Open').toString().trim();
+    if (rawStatus.toLowerCase() == 'open' ||
+        rawStatus.toLowerCase() == 'pending' ||
+        rawStatus.toLowerCase() == 'assigned' ||
+        rawStatus.toLowerCase() == 'allotted' ||
+        rawStatus.isEmpty) {
       status = 'Open';
-    } else if (rawStatus.toLowerCase() == 'in progress' || rawStatus.toLowerCase() == 'inprogress' || rawStatus.toLowerCase() == 'in-progress') {
+    } else if (rawStatus.toLowerCase() == 'in progress' ||
+        rawStatus.toLowerCase() == 'inprogress' ||
+        rawStatus.toLowerCase() == 'in-progress') {
       status = 'In Progress';
-    } else if (rawStatus.toLowerCase() == 'resolved' || rawStatus.toLowerCase() == 'solved' || rawStatus.toLowerCase() == 'closed') {
+    } else if (rawStatus.toLowerCase() == 'resolved' ||
+        rawStatus.toLowerCase() == 'solved' ||
+        rawStatus.toLowerCase() == 'closed') {
       status = 'Resolved';
     } else {
       status = 'Open';
     }
 
-    substatus = TextEditingController(text: (widget.complaint['Substatus'] ?? widget.complaint['substatus'] ?? '').toString());
+    substatus = TextEditingController(
+      text: (c['Substatus'] ?? c['substatus'] ?? '').toString().trim(),
+    );
 
-    final rawBrand = (widget.complaint['Brand'] ?? widget.complaint['brand'] ?? '')?.toString();
+    final rawBrand = (c['Brand'] ?? c['brand'])?.toString().trim();
     selectedBrand = (rawBrand != null && rawBrand.isNotEmpty) ? rawBrand : null;
 
-    final rawCategory = (widget.complaint['Category'] ?? widget.complaint['category'] ?? '')?.toString();
+    final rawCategory = (c['Category'] ?? c['category'])?.toString().trim();
     selectedCategory = (rawCategory != null && rawCategory.isNotEmpty) ? rawCategory : null;
 
-    final rawProduct = (widget.complaint['Product name'] ?? widget.complaint['Product Name'] ?? widget.complaint['product'] ?? '')?.toString();
+    final rawProduct = (c['Product name'] ?? c['Product Name'] ?? c['product'])?.toString().trim();
     _selectedValue = (rawProduct != null && rawProduct.isNotEmpty) ? rawProduct : null;
 
-    final rawWarranty = (widget.complaint['Warranty status'] ?? widget.complaint['warranty'] ?? 'In Warranty').toString();
+    final rawWarranty = (c['Warranty status'] ?? c['warranty'] ?? 'In Warranty').toString();
     selectedWarranty = (rawWarranty.toLowerCase().contains('out')) ? 'Out of Warranty' : 'In Warranty';
 
     fetchbrands(widget.token);
@@ -328,9 +445,9 @@ required String Name,
       });
     }
 
-    if (widget.complaint['Visit time'] != null) {
+    if (c['Visit time'] != null) {
       try {
-        final timeStr = widget.complaint['Visit time'].toString();
+        final timeStr = c['Visit time'].toString();
         final parts = timeStr.split(':');
         if (parts.length >= 2) {
           selectedVisitTime = TimeOfDay(
@@ -338,15 +455,33 @@ required String Name,
             minute: int.parse(parts[1].split(' ')[0]),
           );
         }
-      } catch (e) {
+      } catch (_) {
         selectedVisitTime = null;
       }
     }
   }
 
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 18.0, bottom: 8.0),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: Theme.of(context).primaryColor),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Ensure dropdown options contain pre-selected values so Flutter never crashes
     if (selectedBrand != null && selectedBrand!.isNotEmpty && !brands.contains(selectedBrand)) {
       brands.insert(0, selectedBrand!);
     }
@@ -364,372 +499,522 @@ required String Name,
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Service Form")),
+      appBar: AppBar(
+        title: const Text("Service Form"),
+      ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: name,
-                  decoration: const InputDecoration(
-                    label: Text("Customer Name"),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: mobile,
-                  decoration: const InputDecoration(
-                    label: Text("Phone"),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: address,
-                  decoration: const InputDecoration(
-                    label: Text("address"),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: city,
-                  decoration: const InputDecoration(
-                    label: Text("City"),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: complaindate,
-                  decoration: const InputDecoration(
-                    label: Text("Date of Complain"),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: (selectedBrand != null && brands.contains(selectedBrand)) ? selectedBrand : null,
-                  hint: const Text("Select Brand"),
-                  decoration: const InputDecoration(
-                    labelText: "Brand",
-                    border: OutlineInputBorder(),
-                  ),
-                  isExpanded: true,
-                  items: brands.map<DropdownMenuItem<String>>((String brnd) {
-                    return DropdownMenuItem<String>(
-                      value: brnd,
-                      child: Text(
-                        brnd,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Summary Header Card
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                color: Colors.blueGrey.shade50,
+                child: Padding(
+                  padding: const EdgeInsets.all(14.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              cmpno.text.isNotEmpty ? 'Complaint #${cmpno.text}' : 'Complaint Details',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blueGrey.shade900,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).primaryColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              requestType.isNotEmpty ? requestType : 'Complain',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).primaryColor,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    );
-                  }).toList(),
-                  onChanged: (String? newbrnd) {
-                    setState(() {
-                      selectedBrand = newbrnd;
-                      selectedCategory = null;
-                      _selectedValue = null;
-                      categories.clear();
-                      products.clear();
-                      if (newbrnd != null) {
-                        fetchCategories(newbrnd);
-                      }
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Category Dropdown
-                DropdownButtonFormField<String>(
-                  value: (selectedCategory != null && categories.contains(selectedCategory)) ? selectedCategory : null,
-                  hint: const Text("Select Category"),
-                  decoration: const InputDecoration(
-                    labelText: "Category",
-                    border: OutlineInputBorder(),
+                      if (allottedTo.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Icon(Icons.person_pin, size: 16, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Allotted to: $allottedTo',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade800,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
                   ),
-                  isExpanded: true,
-                  onChanged: (newValue) {
-                    setState(() {
-                      selectedCategory = newValue;
-                      _selectedValue = null;
-                      products.clear();
-                    });
-                    if (newValue != null && selectedBrand != null) {
-                      fetchProductsForCategory(selectedBrand!, newValue);
-                    }
-                  },
-                  items: categories.map<DropdownMenuItem<String>>((String category) {
-                    return DropdownMenuItem<String>(
-                      value: category,
-                      child: Text(
-                        category,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
+                ),
+              ),
+
+              // Section 1: Customer Information
+              _buildSectionHeader("Customer Information", Icons.person_outline),
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: name,
+                        decoration: const InputDecoration(
+                          labelText: "Customer Name",
+                          prefixIcon: Icon(Icons.person),
+                          border: OutlineInputBorder(),
+                        ),
                       ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 16),
-
-                DropdownButtonFormField<String>(
-                  value: (_selectedValue != null && products.contains(_selectedValue)) ? _selectedValue : null,
-                  hint: const Text("Select Product"),
-                  decoration: const InputDecoration(
-                    labelText: "Product",
-                    border: OutlineInputBorder(),
-                  ),
-                  isExpanded: true,
-                  items: products.map<DropdownMenuItem<String>>((String prod) {
-                    return DropdownMenuItem<String>(
-                      value: prod,
-                      child: Text(
-                        prod,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: mobile,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: "Phone",
+                          prefixIcon: Icon(Icons.phone),
+                          border: OutlineInputBorder(),
+                        ),
                       ),
-                    );
-                  }).toList(),
-                  onChanged: (productselected) {
-                    setState(() {
-                      _selectedValue = productselected;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                DropdownMenu<String>(
-                  controller: _villageSearchController,
-                  initialSelection: villageName,
-                  label: const Text('Village'),
-                  hintText: 'Select or search village',
-                  enableFilter: true,
-                  dropdownMenuEntries: villages.map<DropdownMenuEntry<String>>((String v) {
-                    return DropdownMenuEntry<String>(
-                      value: v,
-                      label: v,
-                    );
-                  }).toList(),
-                  onSelected: (String? newVillage) {
-                    setState(() {
-                      villageName = newVillage;
-                      dealerName = null;
-                      dealers.clear();
-                    });
-                    if (newVillage != null) {
-                      fetchDealers(newVillage);
-                    }
-                  },
-                  width: MediaQuery.of(context).size.width - 32,
-                ),
-                const SizedBox(height: 16),
-
-                DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  value: (dealerName != null && dealers.contains(dealerName)) ? dealerName : null,
-                  hint: const Text("Select Dealer"),
-                  decoration: const InputDecoration(
-                    labelText: "Dealer",
-                    border: OutlineInputBorder(),
-                  ),
-                  items: dealers.map((String dealer) {
-                    return DropdownMenuItem<String>(
-                      value: dealer,
-                      child: Text(dealer),
-                    );
-                  }).toList(),
-                  onChanged: (String? newDealer) {
-                    setState(() {
-                      dealerName = newDealer;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: visitTime,
-                  decoration: const InputDecoration(
-                    labelText: "Visit Time",
-                    border: OutlineInputBorder(),
-                  ),
-                  readOnly: true,
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: visitDate,
-                  decoration: const InputDecoration(
-                    labelText: "Visit Date",
-                    border: OutlineInputBorder(),
-                  ),
-                  readOnly: true,
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: solveDate,
-                  decoration: const InputDecoration(
-                    labelText: "Solve Date",
-                    border: OutlineInputBorder(),
-                  ),
-                  readOnly: true,
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: purchasedate,
-                  decoration: const InputDecoration(
-                    label: Text("Purchase Date"),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: expirydate,
-                  decoration: const InputDecoration(
-                    label: Text("Warranty Expiry Date"),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: complain,
-                  decoration: const InputDecoration(
-                    label: Text("Complain"),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                DropdownButtonFormField<String>(
-                  value: (selectedWarranty == 'In Warranty' || selectedWarranty == 'Out of Warranty')
-                      ? selectedWarranty
-                      : 'In Warranty',
-                  hint: const Text("Select Warranty Status"),
-                  decoration: const InputDecoration(
-                    labelText: "Warranty Status",
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: "In Warranty",
-                      child: Text("In Warranty"),
-                    ),
-                    DropdownMenuItem(
-                      value: "Out of Warranty",
-                      child: Text("Out of Warranty"),
-                    ),
-                  ],
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      selectedWarranty = newValue;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                DropdownButtonFormField<String>(
-                  value: statuses.contains(status) ? status : 'Open',
-                  hint: const Text("Select Status"),
-                  decoration: const InputDecoration(
-                    labelText: "Status",
-                    border: OutlineInputBorder(),
-                  ),
-                  items: statuses.map((String s) {
-                    return DropdownMenuItem<String>(
-                      value: s,
-                      child: Text(s),
-                    );
-                  }).toList(),
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      status = newValue ?? 'Open';
-
-                      if (newValue == 'In Progress' && visitDate.text.isEmpty) {
-                        final now = DateTime.now();
-                        visitDate.text = now.toIso8601String().split('T')[0];
-                        final tod = TimeOfDay.now();
-                        final hour = tod.hour.toString().padLeft(2, '0');
-                        final minute = tod.minute.toString().padLeft(2, '0');
-                        visitTime.text = '$hour:$minute';
-                      } else if (newValue == 'Resolved' && solveDate.text.isEmpty) {
-                        final now = DateTime.now();
-                        solveDate.text = now.toIso8601String().split('T')[0];
-                        if (complaindate.text.isNotEmpty) {
-                          try {
-                            tat = DateTime.now().difference(DateTime.parse(complaindate.text)).inDays.toString();
-                          } catch (_) {
-                            tat = '0';
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: address,
+                        maxLines: 2,
+                        decoration: const InputDecoration(
+                          labelText: "Address",
+                          prefixIcon: Icon(Icons.home),
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: TextFormField(
+                              controller: city,
+                              decoration: const InputDecoration(
+                                labelText: "City",
+                                prefixIcon: Icon(Icons.location_city),
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 2,
+                            child: TextFormField(
+                              controller: pincode,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: "Pincode",
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownMenu<String>(
+                        controller: _villageSearchController,
+                        initialSelection: villageName,
+                        label: const Text('Village / Area'),
+                        hintText: 'Select or search village',
+                        enableFilter: true,
+                        dropdownMenuEntries: villages.map<DropdownMenuEntry<String>>((String v) {
+                          return DropdownMenuEntry<String>(value: v, label: v);
+                        }).toList(),
+                        onSelected: (String? newVillage) {
+                          setState(() {
+                            villageName = newVillage;
+                            dealerName = null;
+                            dealers.clear();
+                          });
+                          if (newVillage != null) {
+                            fetchDealers(newVillage);
                           }
-                        }
-                      }
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: substatus,
-                  decoration: const InputDecoration(
-                    label: Text("Substatus"),
-                    border: OutlineInputBorder(),
+                        },
+                        width: MediaQuery.of(context).size.width - 56,
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        value: (dealerName != null && dealers.contains(dealerName)) ? dealerName : null,
+                        hint: const Text("Select Dealer"),
+                        decoration: const InputDecoration(
+                          labelText: "Dealer",
+                          prefixIcon: Icon(Icons.storefront),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: dealers.map((String dealer) {
+                          return DropdownMenuItem<String>(
+                            value: dealer,
+                            child: Text(dealer, overflow: TextOverflow.ellipsis),
+                          );
+                        }).toList(),
+                        onChanged: (String? newDealer) {
+                          setState(() {
+                            dealerName = newDealer;
+                          });
+                        },
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
+              ),
 
-                ElevatedButton(
-                  onPressed: () {
-                    final complaintId = widget.complaint['id'] ?? widget.complaint['_id'];
-                    if (complaintId == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Cannot update: complaint ID missing')),
-                      );
-                      return;
-                    }
-                    updateRecord(
-                      Name: name.text,
-                      Phone: mobile.text,
-                      Address: address.text,
-                      City: city.text,
-                      Pincode: pincode.text,
-                      ComplainDate: complaindate.text,
-                      Product: _selectedValue ?? product.text,
-                      Category: selectedCategory ?? category.text,
-                      Brand: selectedBrand ?? brand.text,
-                      visitDate: visitDate.text,
-                      solveDate: solveDate.text,
-                      visitTime: visitTime.text,
-                      tat: tat,
-                      PurchaseDate: purchasedate.text,
-                      ExpiryDate: expirydate.text,
-                      Complain: complain.text,
-                      DealerName: dealerName,
-                      VillageName: villageName,
-                      Warranty: selectedWarranty ?? 'In Warranty',
-                      Status: status,
-                      Substatus: substatus.text,
-                    ).then((_) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Complaint updated successfully')),
-                      );
-                      Navigator.pop(context, true);
-                    }).catchError((error) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Failed to update complaint: $error')),
-                      );
-                    });
-                  },
-                  child: const Text("Submit"),
-                )
-              ],
-            ),
+              // Section 2: Product & Warranty
+              _buildSectionHeader("Product & Warranty Details", Icons.inventory_2_outlined),
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    children: [
+                      DropdownButtonFormField<String>(
+                        value: (selectedBrand != null && brands.contains(selectedBrand)) ? selectedBrand : null,
+                        hint: const Text("Select Brand"),
+                        decoration: const InputDecoration(
+                          labelText: "Brand",
+                          border: OutlineInputBorder(),
+                        ),
+                        isExpanded: true,
+                        items: brands.map<DropdownMenuItem<String>>((String brnd) {
+                          return DropdownMenuItem<String>(
+                            value: brnd,
+                            child: Text(brnd, overflow: TextOverflow.ellipsis),
+                          );
+                        }).toList(),
+                        onChanged: (String? newbrnd) {
+                          setState(() {
+                            selectedBrand = newbrnd;
+                            selectedCategory = null;
+                            _selectedValue = null;
+                            categories.clear();
+                            products.clear();
+                            if (newbrnd != null) {
+                              fetchCategories(newbrnd);
+                            }
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: (selectedCategory != null && categories.contains(selectedCategory)) ? selectedCategory : null,
+                        hint: const Text("Select Category"),
+                        decoration: const InputDecoration(
+                          labelText: "Category",
+                          border: OutlineInputBorder(),
+                        ),
+                        isExpanded: true,
+                        items: categories.map<DropdownMenuItem<String>>((String cat) {
+                          return DropdownMenuItem<String>(
+                            value: cat,
+                            child: Text(cat, overflow: TextOverflow.ellipsis),
+                          );
+                        }).toList(),
+                        onChanged: (newValue) {
+                          setState(() {
+                            selectedCategory = newValue;
+                            _selectedValue = null;
+                            products.clear();
+                          });
+                          if (newValue != null && selectedBrand != null) {
+                            fetchProductsForCategory(selectedBrand!, newValue);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: (_selectedValue != null && products.contains(_selectedValue)) ? _selectedValue : null,
+                        hint: const Text("Select Product"),
+                        decoration: const InputDecoration(
+                          labelText: "Product",
+                          border: OutlineInputBorder(),
+                        ),
+                        isExpanded: true,
+                        items: products.map<DropdownMenuItem<String>>((String prod) {
+                          return DropdownMenuItem<String>(
+                            value: prod,
+                            child: Text(prod, overflow: TextOverflow.ellipsis),
+                          );
+                        }).toList(),
+                        onChanged: (productselected) {
+                          setState(() {
+                            _selectedValue = productselected;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: purchasedate,
+                              decoration: const InputDecoration(
+                                labelText: "Purchase Date",
+                                prefixIcon: Icon(Icons.calendar_today, size: 18),
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextFormField(
+                              controller: expirydate,
+                              decoration: const InputDecoration(
+                                labelText: "Warranty Expiry",
+                                prefixIcon: Icon(Icons.event_busy, size: 18),
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: (selectedWarranty == 'In Warranty' || selectedWarranty == 'Out of Warranty')
+                            ? selectedWarranty
+                            : 'In Warranty',
+                        hint: const Text("Select Warranty Status"),
+                        decoration: const InputDecoration(
+                          labelText: "Warranty Status",
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: "In Warranty",
+                            child: Text("In Warranty"),
+                          ),
+                          DropdownMenuItem(
+                            value: "Out of Warranty",
+                            child: Text("Out of Warranty"),
+                          ),
+                        ],
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            selectedWarranty = newValue;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Section 3: Complain & Service Action
+              _buildSectionHeader("Complaint & Service Action", Icons.build_circle_outlined),
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: complaindate,
+                        decoration: const InputDecoration(
+                          labelText: "Date of Complaint",
+                          prefixIcon: Icon(Icons.date_range),
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: complain,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: "Complain / Remark",
+                          alignLabelWithHint: true,
+                          prefixIcon: Padding(
+                            padding: EdgeInsets.only(bottom: 40),
+                            child: Icon(Icons.report_problem_outlined),
+                          ),
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: statuses.contains(status) ? status : 'Open',
+                        decoration: const InputDecoration(
+                          labelText: "Status",
+                          border: OutlineInputBorder(),
+                        ),
+                        items: statuses.map((String s) {
+                          return DropdownMenuItem<String>(
+                            value: s,
+                            child: Text(s),
+                          );
+                        }).toList(),
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            status = newValue ?? 'Open';
+                            if (newValue == 'In Progress' && visitDate.text.isEmpty) {
+                              final now = DateTime.now();
+                              visitDate.text = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+                              final tod = TimeOfDay.now();
+                              final hour = tod.hour.toString().padLeft(2, '0');
+                              final minute = tod.minute.toString().padLeft(2, '0');
+                              visitTime.text = '$hour:$minute';
+                            } else if (newValue == 'Resolved' && solveDate.text.isEmpty) {
+                              final now = DateTime.now();
+                              solveDate.text = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+                              if (complaindate.text.isNotEmpty) {
+                                try {
+                                  tat = DateTime.now().difference(DateTime.parse(complaindate.text)).inDays.toString();
+                                } catch (_) {
+                                  tat = '0';
+                                }
+                              }
+                            }
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: visitDate,
+                              readOnly: true,
+                              decoration: const InputDecoration(
+                                labelText: "Visit Date",
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextFormField(
+                              controller: visitTime,
+                              readOnly: true,
+                              decoration: const InputDecoration(
+                                labelText: "Visit Time",
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: solveDate,
+                        readOnly: true,
+                        decoration: const InputDecoration(
+                          labelText: "Solve Date",
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: substatus,
+                        decoration: const InputDecoration(
+                          labelText: "Substatus",
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Submit Button
+              SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          setState(() {
+                            isSubmitting = true;
+                          });
+
+                          try {
+                            await updateRecord(
+                              Name: name.text,
+                              Phone: mobile.text,
+                              Address: address.text,
+                              City: city.text,
+                              Pincode: pincode.text,
+                              Cmpno: cmpno.text,
+                              ComplainDate: complaindate.text,
+                              Product: _selectedValue ?? product.text,
+                              Category: selectedCategory ?? category.text,
+                              Brand: selectedBrand ?? brand.text,
+                              visitDate: visitDate.text,
+                              solveDate: solveDate.text,
+                              visitTime: visitTime.text,
+                              tat: tat,
+                              PurchaseDate: purchasedate.text,
+                              ExpiryDate: expirydate.text,
+                              Complain: complain.text,
+                              DealerName: dealerName,
+                              VillageName: villageName,
+                              Warranty: selectedWarranty ?? 'In Warranty',
+                              Status: status,
+                              Substatus: substatus.text,
+                            );
+
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Complaint updated successfully')),
+                              );
+                              Navigator.pop(context, true);
+                            }
+                          } catch (error) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Failed to update complaint: $error')),
+                              );
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() {
+                                isSubmitting = false;
+                              });
+                            }
+                          }
+                        },
+                  child: isSubmitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text("Submit", style: TextStyle(fontSize: 16)),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
           ),
         ),
       ),
