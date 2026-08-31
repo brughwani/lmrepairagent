@@ -36,16 +36,52 @@ class AuthService {
       final userDetails = data['user'];
       print('Token: $token');
       print('Role: $role');
-      print(userDetails);
+      print('UserDetails: $userDetails');
 
-      // UserCredential userCredential = await FirebaseAuth.instance.sign;
+      String karigarName = '';
+      if (userDetails is Map) {
+        karigarName = (userDetails['name'] ??
+                       userDetails['Name'] ??
+                       userDetails['technicianName'] ??
+                       userDetails['Technician'] ??
+                       userDetails['userName'] ??
+                       userDetails['username'] ??
+                       '').toString().trim();
+      } else if (userDetails is String) {
+        karigarName = userDetails.trim();
+      }
 
-      // print(userCredential.user?.getIdToken().toString());
+      // If name is still empty, check the JWT token payload
+      if (karigarName.isEmpty && token != null && token is String) {
+        try {
+          final decoded = JwtDecoder.decode(token);
+          print('Decoded Token: $decoded');
+          karigarName = (decoded['name'] ??
+                         decoded['Name'] ??
+                         decoded['technicianName'] ??
+                         decoded['username'] ??
+                         decoded['sub'] ??
+                         '').toString().trim();
+        } catch (e) {
+          print('JWT decode error: $e');
+        }
+      }
 
-      Navigator.push(context, MaterialPageRoute(builder: (context) => KarigarHome(token: token,name: userDetails['name'],)));
+      print('Resolved Karigar Name: $karigarName');
 
-      //   final role = data['role'];
-      _scheduleTokenRefresh(token);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => KarigarHome(
+            token: token ?? '',
+            name: karigarName,
+          ),
+        ),
+      );
+
+      if (token != null && token is String) {
+        _scheduleTokenRefresh(token);
+      }
       return data;
     } else {
       throw Exception('Failed to authenticate: ${response.body}');

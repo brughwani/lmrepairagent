@@ -21,20 +21,45 @@ class _KarigarHomeState extends State<KarigarHome> {
   @override
   void initState() {
     super.initState();
-    complaintsData=fetchComplaints();
+    complaintsData = fetchComplaints();
+  }
+
+  Future<void> _refresh() async {
+    setState(() {
+      complaintsData = fetchComplaints();
+    });
   }
 
   Future<Map<String, List<dynamic>>> fetchComplaints() async {
-    final url = Uri.parse('https://limsonvercelapi2.vercel.app/api/fskarigarapp?technicianName=${widget.name}');
-    final response = await http.get(url, headers: {
+    final cleanName = widget.name.trim();
+    final url = Uri.https('limsonvercelapi2.vercel.app', '/api/fskarigarapp', {
+      'technicianName': cleanName,
+    });
+    print('Fetching complaints for technician: "$cleanName" via $url');
 
+    final response = await http.get(url, headers: {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer ${widget.token}',
     });
-  //  [, , 'Resolved'];
+
+    print('Response status: ${response.statusCode}');
+    print('Response body: ${response.body}');
+
     if (response.statusCode == 200) {
-      final data = json.decode(response.body) as Map<String, dynamic>;
-      final complaints = data['complaints'] as List<dynamic>;
+      final decoded = json.decode(response.body);
+      List<dynamic> complaints = [];
+
+      if (decoded is List) {
+        complaints = decoded;
+      } else if (decoded is Map<String, dynamic>) {
+        if (decoded['complaints'] is List) {
+          complaints = decoded['complaints'];
+        } else if (decoded['data'] is List) {
+          complaints = decoded['data'];
+        } else if (decoded['records'] is List) {
+          complaints = decoded['records'];
+        }
+      }
 
       // Categorized map
       final Map<String, List<dynamic>> categorizedComplaints = {
@@ -42,36 +67,37 @@ class _KarigarHomeState extends State<KarigarHome> {
         'inProgress': [],
         'solved': [],
       };
+
       for (var complaint in complaints) {
-        switch (complaint['Status']) {
-          case 'Open':
-            categorizedComplaints['pending']?.add(complaint);
-            break;
-          case 'In Progress':
-            categorizedComplaints['inProgress']?.add(complaint);
-            break;
-          case 'Resolved':
-            categorizedComplaints['solved']?.add(complaint);
-            break;
-          default:
-          // Handle unknown statuses if needed
-            break;
+        if (complaint is! Map) continue;
+        final rawStatus = (complaint['Status'] ?? complaint['status'] ?? '').toString().trim().toLowerCase();
+
+        if (rawStatus == 'open' ||
+            rawStatus == 'pending' ||
+            rawStatus == 'assigned' ||
+            rawStatus == 'allotted' ||
+            rawStatus == 'new') {
+          categorizedComplaints['pending']?.add(complaint);
+        } else if (rawStatus == 'in progress' ||
+            rawStatus == 'in-progress' ||
+            rawStatus == 'inprogress' ||
+            rawStatus == 'ongoing') {
+          categorizedComplaints['inProgress']?.add(complaint);
+        } else if (rawStatus == 'resolved' ||
+            rawStatus == 'solved' ||
+            rawStatus == 'closed' ||
+            rawStatus == 'completed' ||
+            rawStatus == 'done') {
+          categorizedComplaints['solved']?.add(complaint);
+        } else {
+          // Fallback: don't lose any complaints allotted to the technician
+          categorizedComplaints['pending']?.add(complaint);
         }
-        print(jsonEncode(categorizedComplaints['pending']));
-        // print('Pending Complaints: ${categorizedComplaints['pending']}');
       }
-        return categorizedComplaints;
 
-        // print('Data: $data');
-        // return {
-        //   'pending': data['complaints'][0]['']['Open'] ?? [],
-        //   'inProgress': data['In Progress'] ?? [],
-        //   'solved': data['Resolved'] ?? [],
-        // };
-
-    }
-      else {
-      throw Exception('Failed to load complaints');
+      return categorizedComplaints;
+    } else {
+      throw Exception('Failed to load complaints (${response.statusCode}): ${response.body}');
     }
   }
 
@@ -79,89 +105,111 @@ class _KarigarHomeState extends State<KarigarHome> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard'),
+        title: Text(widget.name.isNotEmpty ? 'Dashboard (${widget.name})' : 'Dashboard'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _refresh,
+          ),
+        ],
       ),
-      body: FutureBuilder<Map<String, List<dynamic>>>(
-        future: complaintsData,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          } else if (snapshot.hasData) {
-            final data = snapshot.data!;
-            print(data.runtimeType);
-            return SingleChildScrollView(
-              child: Column(
-                children: [
-                  ComplaintContainer(
-                    title: 'Pending Complaints',
-                    complaints: data['pending']?.length,
-                    color: Colors.orange,
-                    onTap: () {
-                      print('Pending complaints tapped: ${data['pending']}');
-                      // Handle tap for pending complaints
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ComplaintDetailsPage(title:"pending",complaint: data['pending']!,token: widget.token,
-                          onRefresh: () {
-                            setState(() {
-                              complaintsData = fetchComplaints();
-                            });
-                          },
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: FutureBuilder<Map<String, List<dynamic>>>(
+          future: complaintsData,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            } else if (snapshot.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Error: ${snapshot.error}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _refresh,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            } else if (snapshot.hasData) {
+              final data = snapshot.data!;
+              return SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  children: [
+                    ComplaintContainer(
+                      title: 'Pending Complaints',
+                      complaints: data['pending']?.length ?? 0,
+                      color: Colors.orange,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ComplaintDetailsPage(
+                              title: "Pending Complaints",
+                              complaint: data['pending'] ?? [],
+                              token: widget.token,
+                              onRefresh: _refresh,
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-                  ComplaintContainer(
-                    title: 'In Progress Complaints',
-                    complaints: data['inProgress']?.length,
-                    color: Colors.blue,
-                    onTap: () {
-                      // Handle tap for in-progress complaints
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ComplaintDetailsPage(title:"In progress",complaint: data['inProgress']!,token: widget.token,
-                          onRefresh: () {
-                            setState(() {
-                              complaintsData = fetchComplaints();
-                            });
-                          },),
-
-                        ),
-                      );
-                    },
-                  ),
-                  ComplaintContainer(
-                    title: 'Solved Complaints',
-                    complaints: data['solved']?.length,
-                    color: Colors.green,
-                    onTap: () {
-                      // Handle tap for solved complaints
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ComplaintDetailsPage(title:"solved",complaint: data['solved']!,token: widget.token,
-                          onRefresh: () {
-                            setState(() {
-                              complaintsData = fetchComplaints();
-                            });
-                          },),
+                        );
+                      },
+                    ),
+                    ComplaintContainer(
+                      title: 'In Progress Complaints',
+                      complaints: data['inProgress']?.length ?? 0,
+                      color: Colors.blue,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ComplaintDetailsPage(
+                              title: "In Progress Complaints",
+                              complaint: data['inProgress'] ?? [],
+                              token: widget.token,
+                              onRefresh: _refresh,
+                            ),
                           ),
-
-                      );
-                    },
-                  ),
-                ],
-              ),
-            );
-          } else {
-            return const Center(child: Text('No data available'));
-          }
-        },
+                        );
+                      },
+                    ),
+                    ComplaintContainer(
+                      title: 'Solved Complaints',
+                      complaints: data['solved']?.length ?? 0,
+                      color: Colors.green,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ComplaintDetailsPage(
+                              title: "Solved Complaints",
+                              complaint: data['solved'] ?? [],
+                              token: widget.token,
+                              onRefresh: _refresh,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              );
+            } else {
+              return const Center(child: Text('No data available'));
+            }
+          },
+        ),
       ),
     );
   }
@@ -195,7 +243,7 @@ class ComplaintContainer extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -203,27 +251,12 @@ class ComplaintContainer extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                '$complaints Complaints',
-                style: TextStyle(
+                '${complaints ?? 0} Complaints',
+                style: const TextStyle(
                   fontSize: 16,
                   color: Colors.white,
                 ),
               ),
-              // .map((complaint) {
-              //   return ListTile(
-              //     title: Text(complaint['title']),
-              //     subtitle: Text(complaint['description']),
-              //     onTap: () {
-              //       Navigator.push(
-              //         context,
-              //         MaterialPageRoute(
-              //           builder: (context) =>
-              //               ComplaintDetailsPage(complaint: complaint),
-              //         ),
-              //       );
-              //     },
-              //   );
-              // }).toList(),
             ],
           ),
         ),
@@ -233,12 +266,18 @@ class ComplaintContainer extends StatelessWidget {
 }
 
 class ComplaintDetailsPage extends StatelessWidget {
-  String title;
+  final String title;
   final List<dynamic> complaint;
-  String token;
+  final String token;
   final VoidCallback onRefresh;
-  ComplaintDetailsPage({required this.title,required this.complaint, Key? key,required this.token,required this.onRefresh})
-      : super(key: key);
+
+  const ComplaintDetailsPage({
+    required this.title,
+    required this.complaint,
+    Key? key,
+    required this.token,
+    required this.onRefresh,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -246,39 +285,69 @@ class ComplaintDetailsPage extends StatelessWidget {
       appBar: AppBar(
         title: Text(title),
       ),
-      body: ListView.builder(
-        itemCount: complaint.length,
-        itemBuilder: (context, index) {
-          final complaintItem = complaint.toList()[index];
-          print(complaintItem);
-          return ListTile(
+      body: complaint.isEmpty
+          ? const Center(child: Text('No complaints in this category'))
+          : ListView.builder(
+              itemCount: complaint.length,
+              itemBuilder: (context, index) {
+                final complaintItem = complaint[index];
+                final customerName = complaintItem['Customer name'] ??
+                    complaintItem['Customer Name'] ??
+                    complaintItem['customerName'] ??
+                    complaintItem['name'] ??
+                    'Customer';
+                final brand = complaintItem['Brand'] ?? complaintItem['brand'] ?? '-';
+                final product = complaintItem['Product name'] ??
+                    complaintItem['Product Name'] ??
+                    complaintItem['product'] ??
+                    '-';
+                final complaintDate = complaintItem['date of complain'] ??
+                    complaintItem['Date of complain'] ??
+                    complaintItem['complaintDate'] ??
+                    '-';
+                final status = complaintItem['Status'] ?? complaintItem['status'] ?? '-';
 
-            title: Text(complaintItem['Customer name']),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Brand: ${complaintItem['Brand']}'),
-                Text('Product: ${complaintItem['Product name']}'),
-                Text('Complaint Date: ${complaintItem['date of complain']}'),
-                Text('Status: ${complaintItem['Status']}'),
-              ],
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  child: ListTile(
+                    title: Text(
+                      customerName.toString(),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Brand: $brand'),
+                          Text('Product: $product'),
+                          Text('Complaint Date: $complaintDate'),
+                          Text('Status: $status'),
+                        ],
+                      ),
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => KarigarApp(
+                            complaint: complaintItem is Map<String, dynamic>
+                                ? complaintItem
+                                : Map<String, dynamic>.from(complaintItem),
+                            title: title,
+                            token: token,
+                          ),
+                        ),
+                      );
+                      if (result == true) {
+                        onRefresh();
+                      }
+                    },
+                  ),
+                );
+              },
             ),
-            onTap: () async {
-              // Handle tap for complaint details
-           final result= await   Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => KarigarApp(complaint: complaintItem, title: title,token: token)
-                  ),);
-               result == true ? onRefresh() : null;
-
-
-            },
-
-          );
-
-        },
-      ),
     );
   }
 }
