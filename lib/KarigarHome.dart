@@ -297,6 +297,34 @@ class ComplaintContainer extends StatelessWidget {
   }
 }
 
+String formatComplaintDate(dynamic date) {
+  if (date == null) return '-';
+  if (date is DateTime) {
+    return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+  }
+  if (date is Map) {
+    final seconds = date['_seconds'] ?? date['seconds'] ?? date['_seconds_'];
+    if (seconds != null && seconds is num) {
+      final dt = DateTime.fromMillisecondsSinceEpoch(seconds.toInt() * 1000);
+      return "${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}";
+    }
+  }
+  final str = date.toString().trim();
+  if (str.isEmpty) return '-';
+  final secMatch = RegExp(r'_?seconds:?\s*(\d+)').firstMatch(str);
+  if (secMatch != null) {
+    final sec = int.tryParse(secMatch.group(1)!);
+    if (sec != null) {
+      final dt = DateTime.fromMillisecondsSinceEpoch(sec * 1000);
+      return "${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}";
+    }
+  }
+  if (str.contains('T')) {
+    return str.split('T')[0];
+  }
+  return str;
+}
+
 class ComplaintDetailsPage extends StatelessWidget {
   final String title;
   final List<dynamic> complaint;
@@ -320,45 +348,77 @@ class ComplaintDetailsPage extends StatelessWidget {
       body: complaint.isEmpty
           ? const Center(child: Text('No complaints in this category'))
           : ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: complaint.length,
               itemBuilder: (context, index) {
-                final complaintItem = complaint[index];
-                final customerName = complaintItem['Customer name'] ??
-                    complaintItem['Customer Name'] ??
-                    complaintItem['customerName'] ??
-                    complaintItem['name'] ??
-                    'Customer';
-                final brand = complaintItem['Brand'] ?? complaintItem['brand'] ?? '-';
-                final product = complaintItem['Product name'] ??
-                    complaintItem['Product Name'] ??
-                    complaintItem['product'] ??
-                    '-';
-                final complaintDate = complaintItem['date of complain'] ??
-                    complaintItem['Date of complain'] ??
-                    complaintItem['complaintDate'] ??
-                    '-';
-                final status = complaintItem['Status'] ?? complaintItem['status'] ?? '-';
+                final complaintItem = complaint[index] is Map
+                    ? complaint[index]
+                    : <String, dynamic>{};
+
+                final customerName = (complaintItem['Customer name'] ??
+                        complaintItem['Customer Name'] ??
+                        complaintItem['customerName'] ??
+                        complaintItem['name'] ??
+                        'Customer')
+                    .toString()
+                    .trim();
+
+                final phone = (complaintItem['Phone'] ??
+                        complaintItem['phone'] ??
+                        complaintItem['Mobile'] ??
+                        '')
+                    .toString()
+                    .trim();
+
+                final complainNo = (complaintItem['Complain number'] ??
+                        complaintItem['Complaint no.'] ??
+                        complaintItem['cmpno'] ??
+                        '')
+                    .toString()
+                    .trim();
+
+                final brand = (complaintItem['Brand'] ?? complaintItem['brand'] ?? '-')
+                    .toString()
+                    .trim();
+
+                final product = (complaintItem['Product name'] ??
+                        complaintItem['Product Name'] ??
+                        complaintItem['product'] ??
+                        '-')
+                    .toString()
+                    .trim();
+
+                final complaintDate = formatComplaintDate(
+                    complaintItem['date of complain'] ??
+                        complaintItem['Date of complain'] ??
+                        complaintItem['complaintDate']);
+
+                final problem = (complaintItem['Complain/Remark'] ??
+                        complaintItem['Problem'] ??
+                        complaintItem['problem'] ??
+                        complaintItem['complain'] ??
+                        '')
+                    .toString()
+                    .trim();
+
+                final city = (complaintItem['city'] ?? complaintItem['City'] ?? '')
+                    .toString()
+                    .trim();
+
+                final status = (complaintItem['Status'] ??
+                        complaintItem['status'] ??
+                        'Open')
+                    .toString()
+                    .trim();
 
                 return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  child: ListTile(
-                    title: Text(
-                      customerName.toString(),
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Brand: $brand'),
-                          Text('Product: $product'),
-                          Text('Complaint Date: $complaintDate'),
-                          Text('Status: $status'),
-                        ],
-                      ),
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
+                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
                     onTap: () async {
                       final result = await Navigator.push(
                         context,
@@ -376,6 +436,146 @@ class ComplaintDetailsPage extends StatelessWidget {
                         onRefresh();
                       }
                     },
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  customerName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                              if (complainNo.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blueGrey.shade100,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    '#$complainNo',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.blueGrey.shade800,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          if (phone.isNotEmpty || city.isNotEmpty)
+                            Row(
+                              children: [
+                                if (phone.isNotEmpty) ...[
+                                  const Icon(Icons.phone, size: 14, color: Colors.grey),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    phone,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey.shade700,
+                                    ),
+                                  ),
+                                ],
+                                if (phone.isNotEmpty && city.isNotEmpty)
+                                  const Text(' • ', style: TextStyle(color: Colors.grey)),
+                                if (city.isNotEmpty) ...[
+                                  const Icon(Icons.location_on, size: 14, color: Colors.grey),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    city,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey.shade700,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '$brand - $product',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (problem.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Issue: $problem',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.red.shade700,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                          const Divider(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Date: $complaintDate',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: status.toLowerCase() == 'resolved'
+                                          ? Colors.green.shade100
+                                          : status.toLowerCase() == 'in progress'
+                                              ? Colors.blue.shade100
+                                              : Colors.orange.shade100,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      status,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: status.toLowerCase() == 'resolved'
+                                            ? Colors.green.shade800
+                                            : status.toLowerCase() == 'in progress'
+                                                ? Colors.blue.shade800
+                                                : Colors.orange.shade800,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 );
               },
