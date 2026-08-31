@@ -46,9 +46,23 @@ class AuthService {
                        userDetails['Technician'] ??
                        userDetails['userName'] ??
                        userDetails['username'] ??
+                       userDetails['allotted to'] ??
+                       userDetails['Allotted To'] ??
+                       userDetails['employee'] ??
+                       userDetails['Employee'] ??
                        '').toString().trim();
       } else if (userDetails is String) {
         karigarName = userDetails.trim();
+      }
+
+      if (karigarName.isEmpty && data is Map) {
+        karigarName = (data['name'] ??
+                       data['Name'] ??
+                       data['technicianName'] ??
+                       data['Technician'] ??
+                       data['username'] ??
+                       data['userName'] ??
+                       '').toString().trim();
       }
 
       // If name is still empty, check the JWT token payload
@@ -59,12 +73,19 @@ class AuthService {
           karigarName = (decoded['name'] ??
                          decoded['Name'] ??
                          decoded['technicianName'] ??
+                         decoded['Technician'] ??
                          decoded['username'] ??
+                         decoded['userName'] ??
+                         decoded['allotted to'] ??
                          decoded['sub'] ??
                          '').toString().trim();
         } catch (e) {
           print('JWT decode error: $e');
         }
+      }
+
+      if (karigarName.isEmpty && phone.trim().isNotEmpty) {
+        karigarName = phone.trim();
       }
 
       print('Resolved Karigar Name: $karigarName');

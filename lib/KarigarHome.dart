@@ -30,75 +30,107 @@ class _KarigarHomeState extends State<KarigarHome> {
     });
   }
 
+  Future<List<dynamic>> _queryApi(String techName) async {
+    if (techName.isEmpty) return [];
+    try {
+      final url = Uri.https('limsonvercelapi2.vercel.app', '/api/fskarigarapp', {
+        'technicianName': techName,
+      });
+      print('Fetching complaints for technicianName="$techName" via $url');
+
+      final response = await http.get(url, headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ${widget.token}',
+      });
+
+      print('Response for "$techName" (${response.statusCode}): ${response.body}');
+
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        if (decoded is List) {
+          return decoded;
+        } else if (decoded is Map<String, dynamic>) {
+          if (decoded['complaints'] is List) {
+            return decoded['complaints'];
+          } else if (decoded['data'] is List) {
+            return decoded['data'];
+          } else if (decoded['records'] is List) {
+            return decoded['records'];
+          }
+        }
+      }
+    } catch (e) {
+      print('Error querying for "$techName": $e');
+    }
+    return [];
+  }
+
   Future<Map<String, List<dynamic>>> fetchComplaints() async {
     final cleanName = widget.name.trim();
-    final url = Uri.https('limsonvercelapi2.vercel.app', '/api/fskarigarapp', {
-      'technicianName': cleanName,
-    });
-    print('Fetching complaints for technician: "$cleanName" via $url');
+    final namesToTry = <String>{};
 
-    final response = await http.get(url, headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ${widget.token}',
-    });
-
-    print('Response status: ${response.statusCode}');
-    print('Response body: ${response.body}');
-
-    if (response.statusCode == 200) {
-      final decoded = json.decode(response.body);
-      List<dynamic> complaints = [];
-
-      if (decoded is List) {
-        complaints = decoded;
-      } else if (decoded is Map<String, dynamic>) {
-        if (decoded['complaints'] is List) {
-          complaints = decoded['complaints'];
-        } else if (decoded['data'] is List) {
-          complaints = decoded['data'];
-        } else if (decoded['records'] is List) {
-          complaints = decoded['records'];
-        }
-      }
-
-      // Categorized map
-      final Map<String, List<dynamic>> categorizedComplaints = {
-        'pending': [],
-        'inProgress': [],
-        'solved': [],
-      };
-
-      for (var complaint in complaints) {
-        if (complaint is! Map) continue;
-        final rawStatus = (complaint['Status'] ?? complaint['status'] ?? '').toString().trim().toLowerCase();
-
-        if (rawStatus == 'open' ||
-            rawStatus == 'pending' ||
-            rawStatus == 'assigned' ||
-            rawStatus == 'allotted' ||
-            rawStatus == 'new') {
-          categorizedComplaints['pending']?.add(complaint);
-        } else if (rawStatus == 'in progress' ||
-            rawStatus == 'in-progress' ||
-            rawStatus == 'inprogress' ||
-            rawStatus == 'ongoing') {
-          categorizedComplaints['inProgress']?.add(complaint);
-        } else if (rawStatus == 'resolved' ||
-            rawStatus == 'solved' ||
-            rawStatus == 'closed' ||
-            rawStatus == 'completed' ||
-            rawStatus == 'done') {
-          categorizedComplaints['solved']?.add(complaint);
-        } else {
-          // Fallback: don't lose any complaints allotted to the technician
-          categorizedComplaints['pending']?.add(complaint);
-        }
-      }
-
-      return categorizedComplaints;
-    } else {
-      throw Exception('Failed to load complaints (${response.statusCode}): ${response.body}');
+    if (cleanName.isNotEmpty) {
+      namesToTry.add(cleanName);
+      namesToTry.add(cleanName.toLowerCase());
+      final titleCase = cleanName[0].toUpperCase() +
+          (cleanName.length > 1 ? cleanName.substring(1).toLowerCase() : '');
+      namesToTry.add(titleCase);
+      namesToTry.add(cleanName.toUpperCase());
     }
+
+    final rawComplaints = <dynamic>[];
+    final seenIds = <String>{};
+
+    for (final name in namesToTry) {
+      final list = await _queryApi(name);
+      for (final item in list) {
+        if (item is Map) {
+          final id = (item['id'] ?? item['_id'] ?? item['Complaint no.'] ?? item['Customer name'] ?? jsonEncode(item)).toString();
+          if (!seenIds.contains(id)) {
+            seenIds.add(id);
+            rawComplaints.add(item);
+          }
+        }
+      }
+    }
+
+    // Categorized map
+    final Map<String, List<dynamic>> categorizedComplaints = {
+      'pending': [],
+      'inProgress': [],
+      'solved': [],
+    };
+
+    for (var complaint in rawComplaints) {
+      if (complaint is! Map) continue;
+      final rawStatus = (complaint['Status'] ?? complaint['status'] ?? '').toString().trim().toLowerCase();
+
+      if (rawStatus == 'open' ||
+          rawStatus == 'pending' ||
+          rawStatus == 'assigned' ||
+          rawStatus == 'allotted' ||
+          rawStatus == 'new' ||
+          rawStatus == '') {
+        categorizedComplaints['pending']?.add(complaint);
+      } else if (rawStatus == 'in progress' ||
+          rawStatus == 'in-progress' ||
+          rawStatus == 'inprogress' ||
+          rawStatus == 'ongoing' ||
+          rawStatus == 'active') {
+        categorizedComplaints['inProgress']?.add(complaint);
+      } else if (rawStatus == 'resolved' ||
+          rawStatus == 'solved' ||
+          rawStatus == 'closed' ||
+          rawStatus == 'completed' ||
+          rawStatus == 'done') {
+        categorizedComplaints['solved']?.add(complaint);
+      } else {
+        // Fallback: don't lose any complaints allotted to the technician
+        categorizedComplaints['pending']?.add(complaint);
+      }
+    }
+
+    return categorizedComplaints;
   }
 
   @override
