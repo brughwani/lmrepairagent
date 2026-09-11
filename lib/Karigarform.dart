@@ -902,7 +902,25 @@ class _KarigarAppState extends State<KarigarApp> {
                               decoration: const InputDecoration(
                                 labelText: "Visit Date",
                                 border: OutlineInputBorder(),
+                                suffixIcon: Icon(Icons.calendar_today, size: 18),
                               ),
+                              onTap: () async {
+                                final initialDate = visitDate.text.isNotEmpty
+                                    ? (DateTime.tryParse(visitDate.text) ?? DateTime.now())
+                                    : DateTime.now();
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: initialDate,
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2100),
+                                );
+                                if (picked != null) {
+                                  setState(() {
+                                    visitDate.text =
+                                        "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+                                  });
+                                }
+                              },
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -913,7 +931,23 @@ class _KarigarAppState extends State<KarigarApp> {
                               decoration: const InputDecoration(
                                 labelText: "Visit Time",
                                 border: OutlineInputBorder(),
+                                suffixIcon: Icon(Icons.access_time, size: 18),
                               ),
+                              onTap: () async {
+                                final initialTime = selectedVisitTime ?? TimeOfDay.now();
+                                final picked = await showTimePicker(
+                                  context: context,
+                                  initialTime: initialTime,
+                                );
+                                if (picked != null) {
+                                  setState(() {
+                                    selectedVisitTime = picked;
+                                    final hour = picked.hour.toString().padLeft(2, '0');
+                                    final minute = picked.minute.toString().padLeft(2, '0');
+                                    visitTime.text = '$hour:$minute';
+                                  });
+                                }
+                              },
                             ),
                           ),
                         ],
@@ -925,7 +959,35 @@ class _KarigarAppState extends State<KarigarApp> {
                         decoration: const InputDecoration(
                           labelText: "Solve Date",
                           border: OutlineInputBorder(),
+                          suffixIcon: Icon(Icons.calendar_today, size: 18),
                         ),
+                        onTap: () async {
+                          final initialDate = solveDate.text.isNotEmpty
+                              ? (DateTime.tryParse(solveDate.text) ?? DateTime.now())
+                              : DateTime.now();
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: initialDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2100),
+                          );
+                          if (picked != null) {
+                            setState(() {
+                              solveDate.text =
+                                  "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+                              if (complaindate.text.isNotEmpty) {
+                                try {
+                                  tat = picked
+                                      .difference(DateTime.parse(complaindate.text))
+                                      .inDays
+                                      .toString();
+                                } catch (_) {
+                                  tat = '0';
+                                }
+                              }
+                            });
+                          }
+                        },
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
