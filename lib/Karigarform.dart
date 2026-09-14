@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:convert';
+import 'package:lmrepaireagent/offline_service.dart';
 
 String _parseDate(dynamic date) {
   if (date == null) return '';
@@ -101,12 +103,15 @@ class _KarigarAppState extends State<KarigarApp> {
       );
       if (response.statusCode == 200) {
         final List<dynamic> brandlist = jsonDecode(response.body);
-        setState(() {
-          brands = brandlist.map((b) => b.toString()).toList();
-        });
+        final fetched = brandlist.map((b) => b.toString()).toList();
+        await OfflineService.saveBrands(fetched);
+        setState(() { brands = fetched; });
       }
     } catch (e) {
-      print('Failed to load brands: $e');
+      // Offline fallback
+      final cached = await OfflineService.loadBrands();
+      if (cached.isNotEmpty) setState(() { brands = cached; });
+      print('Failed to load brands (using cache): $e');
     }
   }
 
@@ -122,13 +127,18 @@ class _KarigarAppState extends State<KarigarApp> {
 
       if (response.statusCode == 200) {
         final List<dynamic> villageList = json.decode(response.body);
-        setState(() {
-          villages = villageList.map((village) => village.toString().toUpperCase()).toList();
-          villages.sort((a, b) => a.compareTo(b));
-        });
+        final fetched = villageList
+            .map((village) => village.toString().toUpperCase())
+            .toList()
+          ..sort((a, b) => a.compareTo(b));
+        await OfflineService.saveVillages(fetched);
+        setState(() { villages = fetched; });
       }
     } catch (e) {
-      print('Failed to load villages: $e');
+      // Offline fallback
+      final cached = await OfflineService.loadVillages();
+      if (cached.isNotEmpty) setState(() { villages = cached; });
+      print('Failed to load villages (using cache): $e');
     }
   }
 
@@ -144,19 +154,24 @@ class _KarigarAppState extends State<KarigarApp> {
 
       if (response.statusCode == 200) {
         final List<dynamic> dealerList = json.decode(response.body);
-        setState(() {
-          dealers = dealerList.map((dealer) => dealer['Dealer name'].toString()).toList();
-        });
+        final fetched =
+            dealerList.map((dealer) => dealer['Dealer name'].toString()).toList();
+        await OfflineService.saveDealers(village, fetched);
+        setState(() { dealers = fetched; });
       }
     } catch (e) {
-      print('Failed to load dealers: $e');
+      // Offline fallback
+      final cached = await OfflineService.loadDealers(village);
+      if (cached.isNotEmpty) setState(() { dealers = cached; });
+      print('Failed to load dealers (using cache): $e');
     }
   }
 
   Future<void> fetchCategories(String brandName) async {
     try {
       final response = await http.get(
-        Uri.parse('https://limsonvercelapi2.vercel.app/api/fsproductservice?level=categories&brand=$brandName'),
+        Uri.parse(
+            'https://limsonvercelapi2.vercel.app/api/fsproductservice?level=categories&brand=$brandName'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${widget.token}',
@@ -165,19 +180,24 @@ class _KarigarAppState extends State<KarigarApp> {
 
       if (response.statusCode == 200) {
         final List<dynamic> categoryList = json.decode(response.body);
-        setState(() {
-          categories = categoryList.map((c) => c.toString()).toList();
-        });
+        final fetched = categoryList.map((c) => c.toString()).toList();
+        await OfflineService.saveCategories(brandName, fetched);
+        setState(() { categories = fetched; });
       }
     } catch (e) {
-      print('Failed to load categories: $e');
+      // Offline fallback
+      final cached = await OfflineService.loadCategories(brandName);
+      if (cached.isNotEmpty) setState(() { categories = cached; });
+      print('Failed to load categories (using cache): $e');
     }
   }
 
-  Future<void> fetchProductsForCategory(String brandName, String categoryId) async {
+  Future<void> fetchProductsForCategory(
+      String brandName, String categoryId) async {
     try {
       final response = await http.get(
-        Uri.parse('https://limsonvercelapi2.vercel.app/api/fsproductservice?level=products&brand=$brandName&category=$categoryId'),
+        Uri.parse(
+            'https://limsonvercelapi2.vercel.app/api/fsproductservice?level=products&brand=$brandName&category=$categoryId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${widget.token}',
@@ -186,8 +206,11 @@ class _KarigarAppState extends State<KarigarApp> {
 
       if (response.statusCode == 200) {
         final List<dynamic> productList = json.decode(response.body);
+        final fetched =
+            productList.map((e) => e['name'].toString()).toList();
+        await OfflineService.saveProducts(brandName, categoryId, fetched);
         setState(() {
-          products = productList.map((e) => e['name'].toString()).toList();
+          products = fetched;
           final rawProd = (widget.complaint['Product name'] ??
                   widget.complaint['Product Name'] ??
                   widget.complaint['product'] ??
@@ -200,7 +223,11 @@ class _KarigarAppState extends State<KarigarApp> {
         });
       }
     } catch (e) {
-      print('Failed to load products: $e');
+      // Offline fallback
+      final cached =
+          await OfflineService.loadProducts(brandName, categoryId);
+      if (cached.isNotEmpty) setState(() { products = cached; });
+      print('Failed to load products (using cache): $e');
     }
   }
 
@@ -233,8 +260,64 @@ class _KarigarAppState extends State<KarigarApp> {
       throw Exception('Complaint ID is missing');
     }
 
-    final url = Uri.parse('https://limsonvercelapi2.vercel.app/api/fsupdaterecord');
+    final fields = {
+      'Customer name': Name,
+      'Phone': Phone,
+      'address': Address,
+      'City': City,
+      'city': City,
+      'Pincode': Pincode,
+      'pincode': Pincode,
+      'Complaint no.': Cmpno,
+      'Complain number': Cmpno,
+      'date of complain': ComplainDate,
+      'Product name': Product,
+      'Category': Category,
+      'Brand': Brand,
+      'Visit date': visitDate ?? '',
+      'Visit time': visitTime ?? '',
+      'Solve date': solveDate ?? '',
+      'TAT': tat ?? '',
+      'Purchase date': PurchaseDate,
+      'warranty expiry date': ExpiryDate,
+      'Problem': Complain,
+      'Complain/Remark': Complain,
+      'Dealer name': DealerName ?? '',
+      'Village': VillageName ?? '',
+      'Warranty status': Warranty,
+      'Status': Status,
+      'Substatus': Substatus,
+    };
 
+    // Check connectivity before attempting network call
+    final connectivity = await Connectivity().checkConnectivity();
+    final isOffline =
+        connectivity.every((r) => r == ConnectivityResult.none);
+
+    if (isOffline) {
+      // Queue the update for later sync
+      await OfflineService.enqueuePendingUpdate({
+        'id': complaintId,
+        'fields': fields,
+        'token': widget.token,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '📶 No internet — changes saved locally and will sync automatically when you\'re back online.',
+            ),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+      return; // Treat as success — don't throw
+    }
+
+    // Online — send immediately
+    final url =
+        Uri.parse('https://limsonvercelapi2.vercel.app/api/fsupdaterecord');
     final response = await http.patch(
       url,
       headers: {
@@ -243,34 +326,7 @@ class _KarigarAppState extends State<KarigarApp> {
       },
       body: jsonEncode({
         'id': complaintId,
-        'fields': {
-          'Customer name': Name,
-          'Phone': Phone,
-          'address': Address,
-          'City': City,
-          'city': City,
-          'Pincode': Pincode,
-          'pincode': Pincode,
-          'Complaint no.': Cmpno,
-          'Complain number': Cmpno,
-          'date of complain': ComplainDate,
-          'Product name': Product,
-          'Category': Category,
-          'Brand': Brand,
-          'Visit date': visitDate ?? '',
-          'Visit time': visitTime ?? '',
-          'Solve date': solveDate ?? '',
-          'TAT': tat ?? '',
-          'Purchase date': PurchaseDate,
-          'warranty expiry date': ExpiryDate,
-          'Problem': Complain,
-          'Complain/Remark': Complain,
-          'Dealer name': DealerName ?? '',
-          'Village': VillageName ?? '',
-          'Warranty status': Warranty,
-          'Status': Status,
-          'Substatus': Substatus,
-        },
+        'fields': fields,
       }),
     );
 

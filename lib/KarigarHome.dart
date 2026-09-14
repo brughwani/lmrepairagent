@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:lmrepaireagent/Karigarform.dart';
+import 'package:lmrepaireagent/offline_service.dart';
 
 //import 'package:flutter/material.dart';
 
@@ -18,16 +21,104 @@ class KarigarHome extends StatefulWidget {
 class _KarigarHomeState extends State<KarigarHome> {
   late Future<Map<String, List<dynamic>>> complaintsData;
 
+  bool _isOffline = false;
+  int _pendingCount = 0;
+  late StreamSubscription<List<ConnectivityResult>> _connectivitySub;
+
   @override
   void initState() {
     super.initState();
     complaintsData = fetchComplaints();
+    _loadPendingCount();
+
+    _connectivitySub =
+        Connectivity().onConnectivityChanged.listen((results) async {
+      final offline = results.every((r) => r == ConnectivityResult.none);
+      if (!offline && _isOffline) {
+        // Just came back online — sync then refresh
+        await _syncPendingUpdates();
+        _refresh();
+      }
+      if (mounted) {
+        setState(() => _isOffline = offline);
+      }
+    });
+
+    // Set initial connectivity state
+    Connectivity().checkConnectivity().then((results) {
+      if (mounted) {
+        setState(() =>
+            _isOffline = results.every((r) => r == ConnectivityResult.none));
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _connectivitySub.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadPendingCount() async {
+    final count = await OfflineService.pendingUpdateCount();
+    if (mounted) setState(() => _pendingCount = count);
+  }
+
+  Future<void> _syncPendingUpdates() async {
+    final pending = await OfflineService.getPendingUpdates();
+    if (pending.isEmpty) return;
+
+    int synced = 0;
+    int failed = 0;
+    final url = Uri.parse('https://limsonvercelapi2.vercel.app/api/fsupdaterecord');
+
+    for (int i = pending.length - 1; i >= 0; i--) {
+      final update = pending[i];
+      final token = update['token'] as String? ?? '';
+      try {
+        final response = await http.patch(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'id': update['id'],
+            'fields': update['fields'],
+          }),
+        );
+        if (response.statusCode == 200) {
+          await OfflineService.removePendingUpdateAt(i);
+          synced++;
+        } else {
+          failed++;
+        }
+      } catch (_) {
+        failed++;
+      }
+    }
+
+    await _loadPendingCount();
+
+    if (mounted) {
+      final msg = failed == 0
+          ? '$synced update(s) synced successfully ✓'
+          : '$synced synced, $failed failed — will retry next time';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: failed == 0 ? Colors.green.shade700 : Colors.orange.shade700,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
 
   Future<void> _refresh() async {
     setState(() {
       complaintsData = fetchComplaints();
     });
+    await _loadPendingCount();
   }
 
   Future<List<dynamic>> _queryApi(String techName) async {
@@ -78,74 +169,177 @@ class _KarigarHomeState extends State<KarigarHome> {
       namesToTry.add(cleanName.toUpperCase());
     }
 
-    final rawComplaints = <dynamic>[];
-    final seenIds = <String>{};
+    try {
+      final rawComplaints = <dynamic>[];
+      final seenIds = <String>{};
 
-    for (final name in namesToTry) {
-      final list = await _queryApi(name);
-      for (final item in list) {
-        if (item is Map) {
-          final id = (item['id'] ?? item['_id'] ?? item['Complaint no.'] ?? item['Customer name'] ?? jsonEncode(item)).toString();
-          if (!seenIds.contains(id)) {
-            seenIds.add(id);
-            rawComplaints.add(item);
+      for (final name in namesToTry) {
+        final list = await _queryApi(name);
+        for (final item in list) {
+          if (item is Map) {
+            final id = (item['id'] ??
+                    item['_id'] ??
+                    item['Complaint no.'] ??
+                    item['Customer name'] ??
+                    jsonEncode(item))
+                .toString();
+            if (!seenIds.contains(id)) {
+              seenIds.add(id);
+              rawComplaints.add(item);
+            }
           }
         }
       }
-    }
 
-    // Categorized map
-    final Map<String, List<dynamic>> categorizedComplaints = {
-      'pending': [],
-      'inProgress': [],
-      'solved': [],
-    };
+      final Map<String, List<dynamic>> categorizedComplaints = {
+        'pending': [],
+        'inProgress': [],
+        'solved': [],
+      };
 
-    for (var complaint in rawComplaints) {
-      if (complaint is! Map) continue;
-      final rawStatus = (complaint['Status'] ?? complaint['status'] ?? '').toString().trim().toLowerCase();
+      for (var complaint in rawComplaints) {
+        if (complaint is! Map) continue;
+        final rawStatus =
+            (complaint['Status'] ?? complaint['status'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
 
-      if (rawStatus == 'open' ||
-          rawStatus == 'pending' ||
-          rawStatus == 'assigned' ||
-          rawStatus == 'allotted' ||
-          rawStatus == 'new' ||
-          rawStatus == '') {
-        categorizedComplaints['pending']?.add(complaint);
-      } else if (rawStatus == 'in progress' ||
-          rawStatus == 'in-progress' ||
-          rawStatus == 'inprogress' ||
-          rawStatus == 'ongoing' ||
-          rawStatus == 'active') {
-        categorizedComplaints['inProgress']?.add(complaint);
-      } else if (rawStatus == 'resolved' ||
-          rawStatus == 'solved' ||
-          rawStatus == 'closed' ||
-          rawStatus == 'completed' ||
-          rawStatus == 'done') {
-        categorizedComplaints['solved']?.add(complaint);
-      } else {
-        // Fallback: don't lose any complaints allotted to the technician
-        categorizedComplaints['pending']?.add(complaint);
+        if (rawStatus == 'open' ||
+            rawStatus == 'pending' ||
+            rawStatus == 'assigned' ||
+            rawStatus == 'allotted' ||
+            rawStatus == 'new' ||
+            rawStatus == '') {
+          categorizedComplaints['pending']?.add(complaint);
+        } else if (rawStatus == 'in progress' ||
+            rawStatus == 'in-progress' ||
+            rawStatus == 'inprogress' ||
+            rawStatus == 'ongoing' ||
+            rawStatus == 'active') {
+          categorizedComplaints['inProgress']?.add(complaint);
+        } else if (rawStatus == 'resolved' ||
+            rawStatus == 'solved' ||
+            rawStatus == 'closed' ||
+            rawStatus == 'completed' ||
+            rawStatus == 'done') {
+          categorizedComplaints['solved']?.add(complaint);
+        } else {
+          categorizedComplaints['pending']?.add(complaint);
+        }
       }
-    }
 
-    return categorizedComplaints;
+      // ✅ Cache the fresh data
+      await OfflineService.saveComplaints(categorizedComplaints);
+      if (mounted) setState(() => _isOffline = false);
+      return categorizedComplaints;
+    } catch (e) {
+      // 🔌 No internet — try cache
+      final cached = await OfflineService.loadComplaints();
+      if (cached != null) {
+        if (mounted) setState(() => _isOffline = true);
+        return cached;
+      }
+      rethrow;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.name.isNotEmpty ? 'Dashboard (${widget.name})' : 'Dashboard'),
+        title: Text(widget.name.isNotEmpty
+            ? 'Dashboard (${widget.name})'
+            : 'Dashboard'),
         actions: [
+          if (_pendingCount > 0)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Tooltip(
+                message: '$_pendingCount update(s) waiting to sync',
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const Icon(Icons.cloud_upload_outlined),
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: Colors.orange,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                            minWidth: 14, minHeight: 14),
+                        child: Text(
+                          '$_pendingCount',
+                          style: const TextStyle(
+                              fontSize: 9,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _refresh,
           ),
         ],
       ),
-      body: RefreshIndicator(
+      body: Column(
+        children: [
+          // ── Offline indicator banner ──────────────────────────────
+          if (_isOffline)
+            Container(
+              width: double.infinity,
+              color: Colors.amber.shade700,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.wifi_off, size: 16, color: Colors.white),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'You\'re offline — showing cached data. Changes will sync automatically.',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (_pendingCount > 0 && !_isOffline)
+            Container(
+              width: double.infinity,
+              color: Colors.blue.shade600,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.sync, size: 16, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$_pendingCount update(s) pending sync...',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+          // ── Main content ──────────────────────────────────────────
+          Expanded(
+            child: RefreshIndicator(
         onRefresh: _refresh,
         child: FutureBuilder<Map<String, List<dynamic>>>(
           future: complaintsData,
@@ -243,6 +437,9 @@ class _KarigarHomeState extends State<KarigarHome> {
           },
         ),
       ),
+      ),   // Expanded
+        ],
+      ),   // Column
     );
   }
 }
