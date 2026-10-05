@@ -41,6 +41,7 @@ dependencies:
   firebase_core: ^4.1.0
   shared_preferences: ^2.3.2
   connectivity_plus: ^6.0.5
+  url_launcher: ^6.3.0
 
 
 dev_dependencies:

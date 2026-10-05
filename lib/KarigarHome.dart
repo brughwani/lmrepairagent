@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:lmrepaireagent/Karigarform.dart';
 import 'package:lmrepaireagent/offline_service.dart';
+import 'package:lmrepaireagent/phone_utils.dart';
 
 //import 'package:flutter/material.dart';
 
@@ -563,6 +564,9 @@ class ComplaintDetailsPage extends StatelessWidget {
                 final phone = (complaintItem['Phone'] ??
                         complaintItem['phone'] ??
                         complaintItem['Mobile'] ??
+                        complaintItem['mobile'] ??
+                        complaintItem['Contact'] ??
+                        complaintItem['contact'] ??
                         '')
                     .toString()
                     .trim();
@@ -673,27 +677,21 @@ class ComplaintDetailsPage extends StatelessWidget {
                           if (phone.isNotEmpty || city.isNotEmpty)
                             Row(
                               children: [
-                                if (phone.isNotEmpty) ...[
-                                  const Icon(Icons.phone, size: 14, color: Colors.grey),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    phone,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey.shade700,
-                                    ),
-                                  ),
-                                ],
+                                if (phone.isNotEmpty)
+                                  InteractivePhoneChip(phone: phone),
                                 if (phone.isNotEmpty && city.isNotEmpty)
-                                  const Text(' • ', style: TextStyle(color: Colors.grey)),
+                                  const SizedBox(width: 8),
                                 if (city.isNotEmpty) ...[
                                   const Icon(Icons.location_on, size: 14, color: Colors.grey),
                                   const SizedBox(width: 2),
-                                  Text(
-                                    city,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey.shade700,
+                                  Expanded(
+                                    child: Text(
+                                      city,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey.shade700,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ],

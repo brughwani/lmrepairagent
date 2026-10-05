@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:convert';
 import 'package:lmrepaireagent/offline_service.dart';
+import 'package:lmrepaireagent/phone_utils.dart';
 
 String _parseDate(dynamic date) {
   if (date == null) return '';
@@ -365,7 +366,7 @@ class _KarigarAppState extends State<KarigarApp> {
 
     // Phone
     mobile = TextEditingController(
-      text: (c['Phone'] ?? c['phone'] ?? c['Mobile'] ?? c['mobile'] ?? '')
+      text: (c['Phone'] ?? c['phone'] ?? c['Mobile'] ?? c['mobile'] ?? c['Contact'] ?? c['contact'] ?? '')
           .toString()
           .trim(),
     );
@@ -647,10 +648,29 @@ class _KarigarAppState extends State<KarigarApp> {
                       TextFormField(
                         controller: mobile,
                         keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: "Phone",
-                          prefixIcon: Icon(Icons.phone),
-                          border: OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.phone),
+                          suffixIcon: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.copy, size: 20, color: Colors.blueGrey),
+                                tooltip: "Copy phone number",
+                                onPressed: () {
+                                  PhoneUtils.copyToClipboard(context, mobile.text);
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.call, size: 20, color: Colors.green),
+                                tooltip: "Call customer",
+                                onPressed: () {
+                                  PhoneUtils.makeCall(context, mobile.text);
+                                },
+                              ),
+                            ],
+                          ),
+                          border: const OutlineInputBorder(),
                         ),
                       ),
                       const SizedBox(height: 12),
